@@ -1,0 +1,27 @@
+# ctpb vs full libprotobuf vs libprotobuf-lite
+# Command: bash benchmarks/eval_runtime_comparison_lite.sh
+# Environment: ctpb-dev Docker image (sleepingeight/clang-cpp-refl base), 27 Aug 2026
+# CPU: AMD Ryzen 5 3600 6-Core Processor
+# Clang: clang version 21.0.0git (https://github.com/bloomberg/clang-p2996.git 2ea0a79fe7bb5f6fdb8c687ba0e21ab63696e7f7)
+# Protobuf: 3.21.12-8.2ubuntu0.3
+# N=1000000 per trial, 7 trials, 20000 warmup iterations
+
+=== vs full libprotobuf ===
+payload_bytes=47
+trial=0 google_enc_ns=85.321 ctpb_enc_ns=30.525 google_dec_ns=214.171 ctpb_dec_ns=135.188
+trial=1 google_enc_ns=90.767 ctpb_enc_ns=32.745 google_dec_ns=218.600 ctpb_dec_ns=120.357
+trial=2 google_enc_ns=90.287 ctpb_enc_ns=32.107 google_dec_ns=218.485 ctpb_dec_ns=132.108
+trial=3 google_enc_ns=90.744 ctpb_enc_ns=32.159 google_dec_ns=236.044 ctpb_dec_ns=134.492
+trial=4 google_enc_ns=93.195 ctpb_enc_ns=33.054 google_dec_ns=227.296 ctpb_dec_ns=127.515
+trial=5 google_enc_ns=85.573 ctpb_enc_ns=30.945 google_dec_ns=221.989 ctpb_dec_ns=127.992
+trial=6 google_enc_ns=84.717 ctpb_enc_ns=30.674 google_dec_ns=211.266 ctpb_dec_ns=121.740
+
+=== vs libprotobuf-lite ===
+payload_bytes=47
+trial=0 google_enc_ns=90.759 ctpb_enc_ns=31.695 google_dec_ns=219.862 ctpb_dec_ns=141.314
+trial=1 google_enc_ns=127.269 ctpb_enc_ns=32.372 google_dec_ns=223.666 ctpb_dec_ns=132.644
+trial=2 google_enc_ns=91.713 ctpb_enc_ns=32.673 google_dec_ns=222.898 ctpb_dec_ns=132.037
+trial=3 google_enc_ns=108.180 ctpb_enc_ns=36.805 google_dec_ns=249.309 ctpb_dec_ns=130.651
+trial=4 google_enc_ns=98.238 ctpb_enc_ns=33.323 google_dec_ns=223.333 ctpb_dec_ns=135.354
+trial=5 google_enc_ns=101.808 ctpb_enc_ns=35.827 google_dec_ns=230.663 ctpb_dec_ns=132.491
+trial=6 google_enc_ns=99.925 ctpb_enc_ns=31.240 google_dec_ns=228.118 ctpb_dec_ns=145.413

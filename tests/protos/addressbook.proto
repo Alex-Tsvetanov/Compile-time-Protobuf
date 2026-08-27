@@ -22,6 +22,8 @@ message Person {
   }
 
   repeated PhoneNumber phones = 4;
+  bytes avatar = 5;
+  repeated int32 lucky_numbers = 6;
 }
 
 message AddressBook {

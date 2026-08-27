@@ -36,6 +36,8 @@ message Person {
   }
 
   repeated PhoneNumber phones = 4;
+  bytes avatar = 5;
+  repeated int32 lucky_numbers = 6;
 }
 )";
 
@@ -58,8 +60,10 @@ struct CtpbPerson : ctpb::reflect_base<PersonSchema, CtpbPerson> {
     std::int32_t id = 0;
     std::string email;
     std::vector<CtpbPhoneNumber> phones;
+    std::vector<std::byte> avatar;
+    std::vector<std::int32_t> lucky_numbers;
 
-    auto reflect_members() { return std::tie(name, id, email, phones); }
+    auto reflect_members() { return std::tie(name, id, email, phones, avatar, lucky_numbers); }
 };
 
 // gRPC HTTP/2 5-byte framing helpers:
@@ -107,6 +111,12 @@ int main() {
         ph2->set_number("+1-555-0199");
         ph2->set_type(tutorial::Person::WORK);
 
+        // A `bytes` field (non-UTF8 payload) and a packed `repeated int32` field:
+        // proto3's default wire encoding for both, and the two shapes a wire-format
+        // review (26 Aug 2026) found ctpb's reflection dispatch mis-encoded.
+        google_person.set_avatar(std::string("\x00\x01\xDE\xAD\xBE\xEF", 6));
+        for (int n : {3, 1, 4, 1, 5, 9, 2, 6}) google_person.add_lucky_numbers(n);
+
         std::string serialized;
         assert(google_person.SerializeToString(&serialized));
 
@@ -123,7 +133,13 @@ int main() {
         assert(ctpb_decoded->phones[0].type == 0);
         assert(ctpb_decoded->phones[1].number == "+1-555-0199");
         assert(ctpb_decoded->phones[1].type == 2);
-        std::printf("[PASS] Test 1: Google protoc -> ctpb decode validated.\n");
+
+        std::vector<std::byte> expected_avatar = {
+            std::byte{0x00}, std::byte{0x01}, std::byte{0xDE}, std::byte{0xAD}, std::byte{0xBE}, std::byte{0xEF}
+        };
+        assert(ctpb_decoded->avatar == expected_avatar);
+        assert((ctpb_decoded->lucky_numbers == std::vector<std::int32_t>{3, 1, 4, 1, 5, 9, 2, 6}));
+        std::printf("[PASS] Test 1: Google protoc -> ctpb decode validated (incl. bytes + packed repeated).\n");
     }
 
     // -------------------------------------------------------------
@@ -135,6 +151,8 @@ int main() {
         ctpb_p.id = 1815;
         ctpb_p.email = "ada@analyticalengine.org";
         ctpb_p.phones.push_back({"+44-20-7946-0919", 1}); // HOME
+        ctpb_p.avatar = {std::byte{0xCA}, std::byte{0xFE}, std::byte{0x00}, std::byte{0xBA}, std::byte{0xBE}};
+        ctpb_p.lucky_numbers = {7, 11, 21, 42};
 
         std::vector<std::byte> wire_bytes = ctpb::encode(ctpb_p);
         assert(!wire_bytes.empty());
@@ -149,7 +167,11 @@ int main() {
         assert(google_decoded.phones_size() == 1);
         assert(google_decoded.phones(0).number() == "+44-20-7946-0919");
         assert(google_decoded.phones(0).type() == tutorial::Person::HOME);
-        std::printf("[PASS] Test 2: ctpb encode -> Google protoc decode validated.\n");
+        assert(google_decoded.avatar() == std::string("\xCA\xFE\x00\xBA\xBE", 5));
+        assert(google_decoded.lucky_numbers_size() == 4);
+        assert(google_decoded.lucky_numbers(0) == 7);
+        assert(google_decoded.lucky_numbers(3) == 42);
+        std::printf("[PASS] Test 2: ctpb encode -> Google protoc decode validated (incl. bytes + packed repeated).\n");
     }
 
     // -------------------------------------------------------------

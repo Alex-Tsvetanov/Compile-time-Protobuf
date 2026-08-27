@@ -19,7 +19,8 @@ A modern, header-only C++26 library that ingests `.proto` files directly at comp
   - **Encode:** **$27.51\,\text{ns}$** ($1{,}629.6\,\text{MB/s}$, $36.36\,\text{MOps/s}$) vs Google Protobuf $60.86\,\text{ns}$ $\to$ **$\mathbf{2.21\times}$ faster** ($+54.8\%$).
   - **Decode:** **$57.82\,\text{ns}$** ($775.2\,\text{MB/s}$, $17.29\,\text{MOps/s}$) vs Google Protobuf $130.83\,\text{ns}$ $\to$ **$\mathbf{2.26\times}$ faster** ($+55.8\%$).
 - **$91\times$ Smaller Static Binary Footprint:** Standalone static executable requires only **$19\,\text{KB}$** compared to **$1.75\,\text{MB}$** with static `protoc` / `libprotobuf` by eliminating runtime descriptor registries, arena allocators, and mutex locks.
-- **Reference & Transport Interoperability:** 100% bidirectional wire-format fidelity with official `libprotobuf` (v34.1) and seamless `grpc::SerializationTraits<T>` transport integration.
+- **Holds Up Against the Fairer Baseline:** re-measured against `libprotobuf-lite` (same machine, median of 7 trials — see `benchmarks/eval_runtime_comparison_lite.sh` and `benchmarks/results/`): **$3.06\times$ faster encoding, $1.69\times$ faster decoding**, essentially the same margin as against full `libprotobuf`. Different hardware from the headline numbers above, so treat it as a fairness check on the *shape* of the result, not a like-for-like replacement.
+- **Reference & Transport Interoperability:** bidirectional wire-format fidelity with official `libprotobuf` (v34.1), covering scalars, strings, nested messages, enums, `bytes` fields, and packed repeated scalar fields, plus `grpc::SerializationTraits<T>` transport integration.
 
 ---
 
@@ -31,9 +32,9 @@ A modern, header-only C++26 library that ingests `.proto` files directly at comp
 | **Recursive-Descent `constexpr` Parser** | ✅ | Full proto3 grammar: messages, enums, repeated, maps, oneofs, reserved tags |
 | **P2996 Static Reflection Engine** | ✅ | Pure zero-macro `define_message` spliced structs with dot syntax |
 | **Two-Pass Raw-Pointer Wire Engine** | ✅ | Exact compile-time pre-allocation (`byte_size()`) + non-allocating direct pointer encoding |
-| **Comprehensive Test Suite (8 Suites)** | ✅ | Lexer, parser, wire encoding, roundtrips, nested messages, maps, oneofs, Google interop |
-| **Microbenchmark Suite** | ✅ | Ingestion latency, binary footprint evaluation, head-to-head runtime speedup vs `libprotobuf` |
-| **Academic Publication Paper** | ✅ | 6-page IEEE CSIT 2026 conference paper (`paper/main.pdf`) |
+| **Comprehensive Test Suite (9 Suites)** | ✅ | Lexer, parser, wire encoding, roundtrips, nested messages, maps, oneofs, wire-format edge cases, Google interop |
+| **Microbenchmark Suite** | ✅ | Ingestion latency, binary footprint evaluation, head-to-head runtime speedup vs `libprotobuf` and `libprotobuf-lite` |
+| **Academic Publication Paper** | ✅ | 7-page IEEE CSIT 2026 conference paper (`paper/main.pdf`) |
 | **Conference Beamer Presentation** | ✅ | 12-slide 10-minute presentation (`presentation/presentation.pdf`) |
 
 ---
@@ -133,6 +134,20 @@ All microbenchmarks were executed under Clang 21.0 (`-std=c++26 -freflection -O3
 | :--- | :---: | :---: | :---: | :---: | :---: |
 | **Serialization (Encode)** | **$27.51\,\text{ns}$** | $60.86\,\text{ns}$ | **$36.36\,\text{MOps/s}$** ($1{,}629.6\,\text{MB/s}$) | $16.43\,\text{MOps/s}$ ($736.5\,\text{MB/s}$) | **$\mathbf{2.21\times}$ faster** ($+54.8\%$) |
 | **Deserialization (Decode)** | **$57.82\,\text{ns}$** | $130.83\,\text{ns}$ | **$17.29\,\text{MOps/s}$** ($775.2\,\text{MB/s}$) | $7.64\,\text{MOps/s}$ ($342.6\,\text{MB/s}$) | **$\mathbf{2.26\times}$ faster** ($+55.8\%$) |
+
+Measured on an Apple M3. Full `libprotobuf` carries descriptor pools and reflection registries
+`ctpb` doesn't implement, so as a fairness check the same comparison was repeated against
+`libprotobuf-lite` — on a different machine (AMD Ryzen 5 3600, x86\_64 Linux, Protobuf 3.21.12,
+inside the project's own `sleepingeight/clang-cpp-refl` Docker image, `benchmarks/eval_runtime_comparison_lite.sh`),
+so these two rows are internally consistent with each other but not with the M3 row above:
+
+| Baseline | `ctpb` Encode Rate | `ctpb` Decode Rate | Encode Speedup | Decode Speedup |
+| :--- | :---: | :---: | :---: | :---: |
+| Full `libprotobuf` | $1{,}396.0\,\text{MB/s}$ | $350.2\,\text{MB/s}$ | $2.81\times$ | $1.71\times$ |
+| `libprotobuf-lite` | $1{,}371.9\,\text{MB/s}$ | $337.9\,\text{MB/s}$ | $3.06\times$ | $1.69\times$ |
+
+Median of 7 trials of $10^6$ iterations each; raw output in `benchmarks/results/runtime_comparison_lite_docker.txt`.
+The margin against the fairer baseline doesn't shrink — encode is slightly wider, decode is within noise.
 
 ### 2. Standalone Binary Footprint & Static Overhead
 

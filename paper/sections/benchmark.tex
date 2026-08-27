@@ -62,6 +62,7 @@ In comparison, invoking the external \texttt{protoc} executable in a modern buil
 \end{figure}
 
 \subsection{Runtime Serialization and Deserialization Throughput}
+\label{sec:runtime_comparison}
 We evaluated runtime wire encoding and decoding across $1{,}000{,}000$ iterations using an identical representative \texttt{Person} message benchmarked head-to-head against Google's official \texttt{libprotobuf} (Table~\ref{tab:runtime_comparison}).
 
 \begin{table}[ht]
@@ -152,8 +153,29 @@ We evaluated the binary size and intermediate artifacts of a standalone applicat
     \item \textbf{Zero Third-Party Shared Dependencies:} The dynamic executable produced by \texttt{ctpb} links exclusively against standard system libraries (\texttt{libc}, \texttt{libstdc++}), eliminating dynamic shared library deployment risks (\texttt{libprotobuf.so}).
 \end{itemize}
 
+\subsection{Fairness Check: Comparison Against \texttt{libprotobuf-lite}}
+\label{sec:lite_comparison}
+Full \texttt{libprotobuf} carries descriptor pools, reflection registries and arena allocators that \texttt{ctpb} does not implement, so part of Section~\ref{sec:runtime_comparison}'s margin measures the absence of those features rather than the compile-time approach on its own. \texttt{libprotobuf-lite} (\texttt{optimize\_for = LITE\_RUNTIME}) strips them and is the baseline Related Work identifies as fair. We repeated the encode/decode comparison against it, on the same machine as the full-\texttt{libprotobuf} run, so the two are internally consistent with each other even though neither is the Apple M3 used in Section~\ref{sec:runtime_comparison}: an AMD Ryzen 5 3600 (x86\_64, Ubuntu 24.04, Protobuf 3.21.12) inside the project's own \texttt{sleepingeight/clang-cpp-refl} Docker image, reproducible via \texttt{benchmarks/eval\_runtime\_comparison\_lite.sh}. Each figure is the median of seven trials of $10^6$ iterations; raw output is checked in at \texttt{benchmarks/results/runtime\_comparison\_lite\_docker.txt}.
+
+\begin{table}[ht]
+\centering
+\caption{\texttt{ctpb} vs. Full and Lite \texttt{libprotobuf} (same machine, medians)}
+\label{tab:lite_comparison}
+\renewcommand{\arraystretch}{1.2}
+\setlength{\tabcolsep}{3pt}
+\scriptsize
+\begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{Baseline} & \textbf{Encode Speedup} & \textbf{Decode Speedup} & \textbf{\texttt{ctpb} Rate} \\ \hline
+Full \texttt{libprotobuf}  & $2.81\times$ & $1.71\times$ & $1{,}396.0 / 350.2\,\text{MB/s}$ \\ \hline
+\texttt{libprotobuf-lite}  & $3.06\times$ & $1.69\times$ & $1{,}371.9 / 337.9\,\text{MB/s}$ \\ \hline
+\end{tabular}
+\end{table}
+
+The margin against the fairer baseline does not shrink: on this machine, \texttt{ctpb} is $3.06\times$ faster encoding against \texttt{libprotobuf-lite}, slightly wider than the $2.81\times$ margin against full \texttt{libprotobuf}, and decoding is within $0.02\times$ of the full-library margin. The result does not transfer numerically to the Apple M3 headline in Section~\ref{sec:runtime_comparison} --- different hardware, different protobuf build --- but it answers the question that comparison alone could not: the speedup is not merely an artifact of comparing against a heavier reference implementation.
+
 \subsection{Reference Interoperability and gRPC Transport Parity}
-To establish protocol correctness, we performed dual-direction interoperability tests against Google's official \texttt{libprotobuf} reference implementation (v34.1.0) and the \texttt{protoc} code generator \cite{protobuf_spec}.
+To establish protocol correctness, we performed dual-direction interoperability tests against Google's official \texttt{libprotobuf} reference implementation (v34.1.0) and the \texttt{protoc} code generator \cite{protobuf_spec}. These tests cover scalar fields, strings, nested messages and enums, and, following a wire-format review that found the initial implementation mis-encoded them, \texttt{bytes} fields and packed repeated scalar fields as well.
 \begin{itemize}
     \item \textbf{Reference to \texttt{ctpb} Decoding:} Messages populated and serialized using Google's \texttt{SerializeToString()} were decoded using \texttt{ctpb::decode<T>()}. Field values across scalars, signed zigzag integers, strings, enums, and nested messages matched with 100\% fidelity.
     \item \textbf{\texttt{ctpb} to Reference Decoding:} Messages serialized via \texttt{ctpb::encode()} were parsed by Google's \texttt{ParseFromArray()}. All wire tags, varints, and length delimiters conformed exactly to the reference parser expectations.
