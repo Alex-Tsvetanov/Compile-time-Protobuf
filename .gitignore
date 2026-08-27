@@ -36,3 +36,5 @@ ctpb.tag
 # Generated
 *.pb.h
 *.pb.cc
+paper/docx_preview.pdf
+paper/tpl_unpack/
