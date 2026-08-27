@@ -7,7 +7,7 @@
 
 A modern, header-only C++26 library that ingests `.proto` files directly at compile time and generates type-safe C++ structs and wire serialization routines using C++26 static reflection ([P2996](https://wg21.link/p2996)) and `#embed` ([P1967](https://wg21.link/p1967)).
 
-**Zero `protoc` code generation. Zero intermediate files on disk. Zero virtual dispatch. Outperforms Google `libprotobuf` across both serialization ($2.21\times$) and deserialization ($2.26\times$).**
+**Zero `protoc` code generation. Zero intermediate files on disk. Zero virtual dispatch. Outperforms Google `libprotobuf` across both serialization ($2.81\times$) and deserialization ($1.71\times$), a margin that holds against `libprotobuf-lite` too.**
 
 ---
 
@@ -16,11 +16,11 @@ A modern, header-only C++26 library that ingests `.proto` files directly at comp
 - **Pure C++26 Static Reflection (Zero Macros):** Define message types programmatically inside `consteval` blocks (`ctpb::define_message<schema, "Person">()`) and access members using native dot syntax (`person.name`).
 - **Single-Pass $\mathcal{O}(N)$ `constexpr` Parser:** Front-end parser executes in $< 55\,\mu\text{s}$ during compilation ($> 18{,}800$ schemas/sec)—$300\times\text{--}800\times$ faster than `protoc` process spawning.
 - **Superior Runtime Performance:**
-  - **Encode:** **$27.51\,\text{ns}$** ($1{,}629.6\,\text{MB/s}$, $36.36\,\text{MOps/s}$) vs Google Protobuf $60.86\,\text{ns}$ $\to$ **$\mathbf{2.21\times}$ faster** ($+54.8\%$).
-  - **Decode:** **$57.82\,\text{ns}$** ($775.2\,\text{MB/s}$, $17.29\,\text{MOps/s}$) vs Google Protobuf $130.83\,\text{ns}$ $\to$ **$\mathbf{2.26\times}$ faster** ($+55.8\%$).
-- **$91\times$ Smaller Static Binary Footprint:** Standalone static executable requires only **$19\,\text{KB}$** compared to **$1.75\,\text{MB}$** with static `protoc` / `libprotobuf` by eliminating runtime descriptor registries, arena allocators, and mutex locks.
-- **Holds Up Against the Fairer Baseline:** re-measured against `libprotobuf-lite` (same machine, median of 7 trials — see `benchmarks/eval_runtime_comparison_lite.sh` and `benchmarks/results/`): **$3.06\times$ faster encoding, $1.69\times$ faster decoding**, essentially the same margin as against full `libprotobuf`. Different hardware from the headline numbers above, so treat it as a fairness check on the *shape* of the result, not a like-for-like replacement.
-- **Reference & Transport Interoperability:** bidirectional wire-format fidelity with official `libprotobuf` (v34.1), covering scalars, strings, nested messages, enums, `bytes` fields, and packed repeated scalar fields, plus `grpc::SerializationTraits<T>` transport integration.
+  - **Encode:** **$32.11\,\text{ns}$** ($1{,}396.0\,\text{MB/s}$, $31.15\,\text{MOps/s}$) vs Google Protobuf $90.29\,\text{ns}$ $\to$ **$\mathbf{2.81\times}$ faster**.
+  - **Decode:** **$127.99\,\text{ns}$** ($350.2\,\text{MB/s}$, $7.81\,\text{MOps/s}$) vs Google Protobuf $218.60\,\text{ns}$ $\to$ **$\mathbf{1.71\times}$ faster**.
+- **$93.7\times$ Smaller Static Binary Footprint:** Standalone static executable requires only **$18.3\,\text{KB}$** compared to **$1.72\,\text{MB}$** with static `protoc` / `libprotobuf` by eliminating runtime descriptor registries, arena allocators, and mutex locks.
+- **Holds Up Against the Fairer Baseline:** re-measured against `libprotobuf-lite` (same machine, median of 7 trials — see `benchmarks/eval_runtime_comparison_lite.sh` and `benchmarks/results/`): **$3.06\times$ faster encoding, $1.69\times$ faster decoding**, essentially the same margin as against full `libprotobuf`.
+- **Reference & Transport Interoperability:** bidirectional wire-format fidelity with official `libprotobuf` (3.21.12), covering scalars, strings, nested messages, enums, `bytes` fields, and packed repeated scalar fields, plus `grpc::SerializationTraits<T>` transport integration.
 
 ---
 
@@ -103,14 +103,14 @@ int main() {
     p.tags.push_back("author");
     p.tags.push_back("systems-programming");
 
-    // 3. Ultra-fast single-allocation serialization (2.21x faster than Google libprotobuf!)
+    // 3. Ultra-fast single-allocation serialization (2.81x faster than Google libprotobuf!)
     std::vector<std::byte> wire = ctpb::encode(p);
 
     // Optional zero-allocation serialization into existing buffer:
     // std::byte buffer[256];
     // std::size_t written = ctpb::encode_to(p, buffer);
 
-    // 4. Strongly-typed deserialization (2.26x faster than Google libprotobuf!)
+    // 4. Strongly-typed deserialization (1.71x faster than Google libprotobuf!)
     auto decoded = ctpb::decode<Person>(wire);
     if (decoded) {
         std::println("Name:  {}", decoded->name);
@@ -126,27 +126,30 @@ int main() {
 
 ## Empirical Benchmarks
 
-All microbenchmarks were executed under Clang 21.0 (`-std=c++26 -freflection -O3`) on representative 3-field `Person` messages:
+All microbenchmarks were executed inside the project's own `sleepingeight/clang-cpp-refl` Docker
+image, on an AMD Ryzen 5 3600 (6 cores, x86_64, Ubuntu 24.04), Clang 21.0
+(`-std=c++26 -freflection -O3`), Protobuf 3.21.12. Every number below is the median of 7 trials;
+raw output for all three tables is checked in under `benchmarks/results/`, and each script that
+produced it is in `benchmarks/`.
 
-### 1. Runtime Serialization & Deserialization (1,000,000 Iterations)
+### 1. Runtime Serialization & Deserialization (1,000,000 iterations/trial, 7 trials)
+
+Representative 3-field `Person` message, 47-byte wire payload:
 
 | Operation | `ctpb` Latency | Google `libprotobuf` | `ctpb` Throughput | Google Throughput | Speedup |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Serialization (Encode)** | **$27.51\,\text{ns}$** | $60.86\,\text{ns}$ | **$36.36\,\text{MOps/s}$** ($1{,}629.6\,\text{MB/s}$) | $16.43\,\text{MOps/s}$ ($736.5\,\text{MB/s}$) | **$\mathbf{2.21\times}$ faster** ($+54.8\%$) |
-| **Deserialization (Decode)** | **$57.82\,\text{ns}$** | $130.83\,\text{ns}$ | **$17.29\,\text{MOps/s}$** ($775.2\,\text{MB/s}$) | $7.64\,\text{MOps/s}$ ($342.6\,\text{MB/s}$) | **$\mathbf{2.26\times}$ faster** ($+55.8\%$) |
+| **Serialization (Encode)** | **$32.11\,\text{ns}$** | $90.29\,\text{ns}$ | **$31.15\,\text{MOps/s}$** ($1{,}396.0\,\text{MB/s}$) | $11.08\,\text{MOps/s}$ ($496.4\,\text{MB/s}$) | **$\mathbf{2.81\times}$ faster** |
+| **Deserialization (Decode)** | **$127.99\,\text{ns}$** | $218.60\,\text{ns}$ | **$7.81\,\text{MOps/s}$** ($350.2\,\text{MB/s}$) | $4.58\,\text{MOps/s}$ ($205.0\,\text{MB/s}$) | **$\mathbf{1.71\times}$ faster** |
 
-Measured on an Apple M3. Full `libprotobuf` carries descriptor pools and reflection registries
-`ctpb` doesn't implement, so as a fairness check the same comparison was repeated against
-`libprotobuf-lite` — on a different machine (AMD Ryzen 5 3600, x86\_64 Linux, Protobuf 3.21.12,
-inside the project's own `sleepingeight/clang-cpp-refl` Docker image, `benchmarks/eval_runtime_comparison_lite.sh`),
-so these two rows are internally consistent with each other but not with the M3 row above:
+Full `libprotobuf` carries descriptor pools and reflection registries `ctpb` doesn't implement, so
+the same comparison was repeated against `libprotobuf-lite`, same machine, same script
+(`benchmarks/eval_runtime_comparison_lite.sh`):
 
-| Baseline | `ctpb` Encode Rate | `ctpb` Decode Rate | Encode Speedup | Decode Speedup |
-| :--- | :---: | :---: | :---: | :---: |
-| Full `libprotobuf` | $1{,}396.0\,\text{MB/s}$ | $350.2\,\text{MB/s}$ | $2.81\times$ | $1.71\times$ |
-| `libprotobuf-lite` | $1{,}371.9\,\text{MB/s}$ | $337.9\,\text{MB/s}$ | $3.06\times$ | $1.69\times$ |
+| Operation | `ctpb` Throughput | `libprotobuf-lite` Throughput | Speedup |
+| :--- | :---: | :---: | :---: |
+| **Encode** | $1{,}371.9\,\text{MB/s}$ | $448.6\,\text{MB/s}$ | $3.06\times$ |
+| **Decode** | $337.9\,\text{MB/s}$ | $200.4\,\text{MB/s}$ | $1.69\times$ |
 
-Median of 7 trials of $10^6$ iterations each; raw output in `benchmarks/results/runtime_comparison_lite_docker.txt`.
 The margin against the fairer baseline doesn't shrink — encode is slightly wider, decode is within noise.
 
 ### 2. Standalone Binary Footprint & Static Overhead
@@ -154,17 +157,22 @@ The margin against the fairer baseline doesn't shrink — encode is slightly wid
 | Metric | `ctpb` (P2996) | `protoc` (Dynamic) | `protoc` (Fully Static) | Impact |
 | :--- | :---: | :---: | :---: | :---: |
 | **Generated Source Lines** | **0** | 754 lines | 754 lines | Zero disk I/O, no cache churn |
-| **Stripped Binary Size** | **$19\,\text{KB}$** | $27\,\text{KB}$ | **$1,752\,\text{KB}$** ($1.75\,\text{MB}$) | **$\mathbf{91\times}$ size reduction** |
-| **Code Section (`.text`)** | **$10.1\,\text{KB}$** | $16.4\,\text{KB}$ | $1,731.9\,\text{KB}$ | Minimal instruction cache footprint |
+| **Stripped Binary Size** | **$18.3\,\text{KB}$** | $26.9\,\text{KB}$ | **$1,718.1\,\text{KB}$** ($1.72\,\text{MB}$) | **$\mathbf{93.7\times}$ size reduction** |
+| **Code Section (`.text`)** | **$9.8\,\text{KB}$** | $16.0\,\text{KB}$ | $1,691.4\,\text{KB}$ | Minimal instruction cache footprint |
 | **External Shared Dependencies**| **0** | `libprotobuf.so` | **0** | Zero shared library version mismatch |
 
-### 3. Schema Ingestion Latency
+### 3. Schema Ingestion Latency (20,000 iterations/trial, 7 trials)
+
+Schemas scaled by field count alone (`int32` fields, matching the paper's methodology):
 
 | Schema Complexity | Field Count | Ingestion Latency | Throughput | Speedup vs `protoc` |
 | :--- | :---: | :---: | :---: | :---: |
-| **Small Message** | 5 | $18.4\,\mu\text{s}$ | $54{,}340\,\text{parses/s}$ | $\sim 800\times$ faster |
-| **Medium Message** | 25 | $53.1\,\mu\text{s}$ | $18{,}814\,\text{parses/s}$ | $\sim 300\times$ faster |
-| **Large Message** | 100 | $194.2\,\mu\text{s}$ | $5{,}149\,\text{parses/s}$ | $\sim 100\times$ faster |
+| **Small Message** | 5 | $0.86\,\mu\text{s}$ | $1{,}164{,}144\,\text{parses/s}$ | $\sim 8{,}150\times$ faster |
+| **Medium Message** | 25 | $3.04\,\mu\text{s}$ | $329{,}164\,\text{parses/s}$ | $\sim 2{,}300\times$ faster |
+| **Large Message** | 100 | $11.36\,\mu\text{s}$ | $88{,}013\,\text{parses/s}$ | $\sim 620\times$ faster |
+
+`protoc` process-spawn time for the same 3-field schema: $7\,\text{ms}$ median of 7 trials
+(`benchmarks/results/protoc_spawn_time_docker.txt`).
 
 ---
 

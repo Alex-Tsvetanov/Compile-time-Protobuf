@@ -1,0 +1,14 @@
+# ctpb constexpr parser latency: Small(5)/Medium(25)/Large(100) int32 fields
+# Command: bash benchmarks/eval_compile_time_latency.sh
+# Environment: ctpb-dev Docker image (sleepingeight/clang-cpp-refl base), 28 Aug 2026
+# CPU: AMD Ryzen 5 3600 6-Core Processor
+# Clang: clang version 21.0.0git (https://github.com/bloomberg/clang-p2996.git 2ea0a79fe7bb5f6fdb8c687ba0e21ab63696e7f7)
+# ITERS=20000 per trial, 7 trials, 2000 warmup iterations
+
+trial=0 small_us=0.875 medium_us=2.881 large_us=10.720
+trial=1 small_us=0.904 medium_us=3.281 large_us=11.576
+trial=2 small_us=0.859 medium_us=2.937 large_us=12.863
+trial=3 small_us=0.836 medium_us=3.208 large_us=12.230
+trial=4 small_us=0.784 medium_us=2.986 large_us=11.318
+trial=5 small_us=0.795 medium_us=3.038 large_us=11.043
+trial=6 small_us=1.097 medium_us=3.524 large_us=11.362

@@ -1,0 +1,12 @@
+# protoc CLI process-spawn wall-clock time for a 3-field schema (person.proto)
+# Environment: ctpb-dev Docker image (sleepingeight/clang-cpp-refl base), 28 Aug 2026
+# CPU: AMD Ryzen 5 3600 6-Core Processor
+# protoc: libprotoc 3.21.12
+
+trial=1 ms=8
+trial=2 ms=8
+trial=3 ms=6
+trial=4 ms=9
+trial=5 ms=7
+trial=6 ms=7
+trial=7 ms=7

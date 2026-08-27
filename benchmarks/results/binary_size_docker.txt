@@ -1,0 +1,81 @@
+================================================================
+1. GENERATED INTERMEDIATE SOURCE CODE LINES
+================================================================
+protoc code generator output:
+  379 /tmp/eval_ctpb_size/addressbook.pb.h
+  375 /tmp/eval_ctpb_size/addressbook.pb.cc
+  754 total
+ctpb static reflection output:
+       0 lines (0 files, purely in-compiler AST reflection)
+
+================================================================
+2. OBJECT FILE (.o) SIZES AND SECTIONS
+================================================================
+-rw-r--r-- 1 root root  26K Aug 27 20:43 /tmp/eval_ctpb_size/addressbook.pb.o
+-rw-r--r-- 1 root root  22K Aug 27 20:43 /tmp/eval_ctpb_size/person_ctpb.o
+-rw-r--r-- 1 root root 5.5K Aug 27 20:43 /tmp/eval_ctpb_size/person_protoc.o
+
+   text	   data	    bss	    dec	    hex	filename
+   7289	      8	      0	   7297	   1c81	/tmp/eval_ctpb_size/person_ctpb.o
+   5764	    400	     33	   6197	   1835	/tmp/eval_ctpb_size/addressbook.pb.o
+   1146	      8	      0	   1154	    482	/tmp/eval_ctpb_size/person_protoc.o
+
+================================================================
+3. UNSTRIPPED EXECUTABLE SIZES
+================================================================
+-rwxr-xr-x 1 root root  26K Aug 27 20:43 /tmp/eval_ctpb_size/person_ctpb
+-rwxr-xr-x 1 root root  37K Aug 27 20:43 /tmp/eval_ctpb_size/person_protoc_dyn
+-rwxr-xr-x 1 root root 2.3M Aug 27 20:43 /tmp/eval_ctpb_size/person_protoc_static
+
+================================================================
+4. STRIPPED STANDALONE EXECUTABLE SIZES
+================================================================
+-rwxr-xr-x 1 root root  19K Aug 27 20:43 /tmp/eval_ctpb_size/person_ctpb_stripped
+-rwxr-xr-x 1 root root  27K Aug 27 20:43 /tmp/eval_ctpb_size/person_protoc_dyn_stripped
+-rwxr-xr-x 1 root root 1.7M Aug 27 20:43 /tmp/eval_ctpb_size/person_protoc_static_stripped
+
+================================================================
+5. SECTION BREAKDOWN OF STRIPPED EXECUTABLES (size)
+================================================================
+   text	   data	    bss	    dec	    hex	filename
+  10047	    720	      8	  10775	   2a17	/tmp/eval_ctpb_size/person_ctpb_stripped
+  16373	   1384	     56	  17813	   4595	/tmp/eval_ctpb_size/person_protoc_dyn_stripped
+1731945	  19672	   1240	1752857	 1abf19	/tmp/eval_ctpb_size/person_protoc_static_stripped
+
+================================================================
+6. RUNTIME DYNAMIC SHARED LIBRARY DEPENDENCIES (ldd)
+================================================================
+-- ctpb dependencies:
+	linux-vdso.so.1 (0x00007fff6bffa000)
+	libstdc++.so.6 => /lib/x86_64-linux-gnu/libstdc++.so.6 (0x000079ac46633000)
+	libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x000079ac4654a000)
+	libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x000079ac4651c000)
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x000079ac4630a000)
+	/lib64/ld-linux-x86-64.so.2 (0x000079ac468bc000)
+
+-- protoc dynamic dependencies:
+	linux-vdso.so.1 (0x00007fff6d9fa000)
+	libprotobuf.so.32 => /lib/x86_64-linux-gnu/libprotobuf.so.32 (0x00007df181e4b000)
+	libstdc++.so.6 => /lib/x86_64-linux-gnu/libstdc++.so.6 (0x00007df181bcd000)
+	libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007df181ae4000)
+	libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00007df181ab6000)
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007df1818a4000)
+	libz.so.1 => /lib/x86_64-linux-gnu/libz.so.1 (0x00007df181886000)
+	/lib64/ld-linux-x86-64.so.2 (0x00007df182144000)
+
+================================================================
+7. EXECUTION VALIDATION
+================================================================
+-- Running ctpb:
+Encoded Person to 42 wire bytes
+Successfully decoded Person via compile-time reflection:
+  name  : Alex Tsvetanov
+  id    : 42
+  email : atsvetanov@tu-sofia.bg
+
+-- Running protoc:
+Encoded Person to 42 wire bytes
+Successfully decoded Person via protoc:
+  name  : Alex Tsvetanov
+  id    : 42
+  email : atsvetanov@tu-sofia.bg
