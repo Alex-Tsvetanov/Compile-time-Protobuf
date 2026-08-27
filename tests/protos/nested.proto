@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package nested_test;
+
+message Outer {
+  message Inner {
+    message Innermost {
+      int64 value = 1;
+    }
+    Innermost deep = 1;
+  }
+  Inner inner = 1;
+}

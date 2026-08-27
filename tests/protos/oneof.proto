@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package oneof_test;
+
+message Request {
+  oneof body {
+    string text = 1;
+    int32 code = 2;
+    bytes blob = 3;
+  }
+}

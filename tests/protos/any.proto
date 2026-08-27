@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+import "google/protobuf/any.proto";
+
+package any_test;
+
+message Envelope {
+  string label = 1;
+  google.protobuf.Any payload = 2;
+}

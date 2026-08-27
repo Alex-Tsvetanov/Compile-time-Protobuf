@@ -1,0 +1,48 @@
+name: CTPB CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.os }} / ${{ matrix.cxx }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            cxx: apple-clang
+          - os: ubuntu-24.04
+            cxx: g++-14
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install protobuf pkg-config
+
+      - name: Install dependencies (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libprotobuf-dev protobuf-compiler pkg-config g++-14
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 100
+
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_CXX_STANDARD=26 \
+            -DCTPB_BUILD_TESTS=ON \
+            -DCTPB_BUILD_BENCHMARKS=ON
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Run Tests
+        run: ctest --test-dir build --output-on-failure

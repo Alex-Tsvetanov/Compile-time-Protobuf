@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package maps_test;
+
+message Inventory {
+  map<string, int32> stock = 1;
+  map<int64, string> labels = 2;
+}
