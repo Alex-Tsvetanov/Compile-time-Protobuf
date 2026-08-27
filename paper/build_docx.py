@@ -11,7 +11,7 @@ are recomputed here.
 """
 import copy
 import docx
-from docx.shared import Pt, Inches
+from docx.shared import Pt, Inches, RGBColor
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -121,23 +121,104 @@ def keep_together(table, caption_p):
                     p.paragraph_format.keep_with_next = True
 
 
+# Colours transcribed from the lstlisting style in main.tex so the Word
+# listings match the LaTeX ones: keywordstyle=magenta, commentstyle=codegreen
+# rgb(0,0.6,0), stringstyle=codepurple rgb(0.58,0,0.82), numberstyle=codegray
+# rgb(0.5,0.5,0.5), backgroundcolor=backcolour rgb(0.95,0.95,0.92).
+COL_KW = RGBColor(0xFF, 0x00, 0xFF)
+COL_COMMENT = RGBColor(0x00, 0x99, 0x00)
+COL_STRING = RGBColor(0x94, 0x00, 0xD1)
+COL_LINENO = RGBColor(0x80, 0x80, 0x80)
+CODE_BG = "F2F2EB"
+
+# The ModernC++ keyword set defined in main.tex.
+CPP_KEYWORDS = set("""
+alignas alignof and and_eq asm atomic_cancel atomic_commit atomic_noexcept auto
+bitand bitor bool break case catch char char8_t char16_t char32_t class compl
+concept const consteval constexpr constinit const_cast continue contract_assert
+co_await co_return co_yield decltype default delete do double dynamic_cast else
+enum explicit export extern false float for friend goto if inline int long
+mutable namespace new noexcept not not_eq nullptr operator or or_eq private
+protected public reflexpr register reinterpret_cast requires return short signed
+sizeof static static_assert static_cast struct switch synchronized template this
+thread_local throw true try typedef typeid typename union unsigned using virtual
+void volatile wchar_t while xor xor_eq
+""".split())
+
+
+def tokenize_cpp(line):
+    """Split a C++ line into (text, kind) with kind in plain/kw/str/com."""
+    out, buf, i, n = [], "", 0, len(line)
+
+    def flush():
+        nonlocal buf
+        if buf:
+            out.append((buf, "plain"))
+            buf = ""
+
+    while i < n:
+        if line.startswith("//", i):          # line comment runs to EOL
+            flush()
+            out.append((line[i:], "com"))
+            return out
+        if line[i] == '"':                     # string literal
+            flush()
+            j = i + 1
+            while j < n and line[j] != '"':
+                j += 2 if line[j] == "\\" else 1
+            out.append((line[i:j + 1], "str"))
+            i = j + 1
+            continue
+        if line[i].isalpha() or line[i] == "_":
+            j = i
+            while j < n and (line[j].isalnum() or line[j] == "_"):
+                j += 1
+            word = line[i:j]
+            if word in CPP_KEYWORDS:
+                flush()
+                out.append((word, "kw"))
+            else:
+                buf += word
+            i = j
+            continue
+        buf += line[i]
+        i += 1
+    flush()
+    return out
+
+
 def add_code(lines):
-    """Monospace block, 7pt, tight leading, no justification."""
-    for ln in lines:
+    """Syntax-highlighted monospace block with gray line numbers and the
+    same light background the LaTeX listings use."""
+    colours = {"kw": COL_KW, "str": COL_STRING, "com": COL_COMMENT}
+    width = len(str(len(lines)))
+    for idx, ln in enumerate(lines, start=1):
         p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.LEFT
         pf = p.paragraph_format
         pf.space_before = Pt(0)
         pf.space_after = Pt(0)
         pf.line_spacing = 1.0
-        run = p.add_run(ln if ln else " ")
-        run.font.name = "Courier New"
-        run.font.size = Pt(7)
-        rpr = run._element.get_or_add_rPr()
-        rf = OxmlElement("w:rFonts")
-        for a in ("w:ascii", "w:hAnsi", "w:cs"):
-            rf.set(qn(a), "Courier New")
-        rpr.append(rf)
+        # paragraph background, matching backgroundcolor=backcolour
+        shd = OxmlElement("w:shd")
+        shd.set(qn("w:val"), "clear")
+        shd.set(qn("w:fill"), CODE_BG)
+        p._element.get_or_add_pPr().append(shd)
+
+        def emit(text, colour=None, size=7):
+            run = p.add_run(text)
+            set_run_font(run, "Courier New")
+            run.font.size = Pt(size)
+            if colour is not None:
+                run.font.color.rgb = colour
+            return run
+
+        emit(str(idx).rjust(width) + "  ", COL_LINENO, size=5.5)
+        if not ln:
+            emit(" ")
+            continue
+        for text, kind in tokenize_cpp(ln):
+            emit(text, colours.get(kind))
 
 
 def set_borders(table):
@@ -335,6 +416,7 @@ add_p("The resulting public interface requires no macros and no build step:",
 add_code([
     '#include <ctpb/ctpb.hpp>',
     '',
+    '// Compile-time schema synthesis',
     'consteval { ctpb::define_message<"person.proto",',
     '                                 "tutorial.Person">(); }',
     'using Person = ctpb::message_t<"person.proto",',
