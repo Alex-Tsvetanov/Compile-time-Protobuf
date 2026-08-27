@@ -14,27 +14,18 @@ out/
 ctpb.tag
 
 # LaTeX
-paper/*.aux
-paper/*.log
-paper/*.toc
-paper/*.bbl
-paper/*.blg
-paper/*.out
-paper/*.fls
-paper/*.fdb_latexmk
-paper/*.synctex.gz
-presentation/*.aux
-presentation/*.log
-presentation/*.toc
-presentation/*.bbl
-presentation/*.blg
-presentation/*.out
-presentation/*.fls
-presentation/*.snm
-presentation/*.nav
-presentation/*.vrb
-presentation/*.fdb_latexmk
-presentation/*.synctex.gz
+*.aux
+*.log
+*.toc
+*.bbl
+*.blg
+*.out
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.snm
+*.nav
+*.vrb
 
 # Editor
 .vscode/

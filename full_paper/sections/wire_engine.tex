@@ -1,0 +1,44 @@
+\section{Wire Format Engine and Optimization}
+
+\subsection{Encoding Primitives}
+The serialization engine in \texttt{ctpb::wire} is designed for direct byte-stream manipulation without intermediate allocation.
+
+\subsubsection{Varint Encoding}
+Varints represent values using 7 bits of data per byte, with the most significant bit (MSB) indicating whether additional bytes follow:
+\begin{lstlisting}[language=ModernC++, caption={Varint Encoding Routine}]
+inline void write_varint(std::vector<std::byte>& out, std::uint64_t v) {
+    while (v >= 0x80) {
+        out.push_back(static_cast<std::byte>((v & 0x7F) | 0x80));
+        v >>= 7;
+    }
+    out.push_back(static_cast<std::byte>(v & 0x7F));
+}
+\end{lstlisting}
+
+\subsubsection{Zigzag Arithmetic}
+Signed integers are converted into unsigned representations via single-instruction bit shifts and XORs (\texttt{write\_zigzag32}, \texttt{write\_zigzag64}), preventing small negative numbers from consuming 10 bytes on the wire.
+
+\subsubsection{Packed Repeated Fields}
+In proto3, repeated numeric scalar fields are packed by default into a single length-delimited record. \texttt{ctpb} computes the packed payload size inline and writes the contiguous sequence with a single tag.
+
+\subsection{Deserialization and Error Recovery}
+The \texttt{ctpb::wire::reader} class operates on a non-owning \texttt{std::span<const std::byte>}. All operations enforce bounds checking:
+\begin{lstlisting}[language=ModernC++, caption={Bounds-Checked Varint Decoding}]
+constexpr bool reader::read_varint(std::uint64_t& out) noexcept {
+    std::uint64_t result = 0;
+    int shift = 0;
+    while (pos_ < buf_.size() && shift < 70) {
+        std::byte b = buf_[pos_++];
+        result |= static_cast<std::uint64_t>(
+            static_cast<std::uint8_t>(b) & 0x7F) << shift;
+        if ((static_cast<std::uint8_t>(b) & 0x80) == 0) {
+            out = result;
+            return true;
+        }
+        shift += 7;
+    }
+    return false;
+}
+\end{lstlisting}
+
+When unknown fields are encountered, the \texttt{skip\_field} reader method uses the wire type to safely advance past unexpected integers, fixed-size blocks, or length-delimited payloads, maintaining forward compatibility with newer schema versions.

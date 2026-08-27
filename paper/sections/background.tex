@@ -1,52 +1,12 @@
-\section{Background and Motivation}
+\section{Background}
 
-\subsection{Protocol Buffers Specification}
-Protocol Buffers define a compact, extensible binary wire format based on field tags and wire types. Each field transmitted across the wire begins with a key represented as a variable-length integer (varint) computed as:
+\subsection{Protocol Buffers Wire Format}
+Protocol Buffers define a compact binary format in which each field is prefixed by a key encoded as a variable-length integer (varint):
 \begin{equation}
 \text{Key} = (\text{Field Number} \ll 3) \mid \text{Wire Type}
 \label{eq:wire_key}
 \end{equation}
+Four wire types remain live in proto3: varint (\texttt{int32}, \texttt{int64}, \texttt{uint32}, \texttt{uint64}, \texttt{bool}, enums), 64-bit and 32-bit fixed (\texttt{fixed64}/\texttt{double} and \texttt{fixed32}/\texttt{float}), and length-delimited (\texttt{string}, \texttt{bytes}, submessages, and packed repeated scalars). Signed integers (\texttt{sint32}, \texttt{sint64}) apply Zigzag encoding, $(n \ll 1) \oplus (n \gg k-1)$ for a $k$-bit width, so that small negative values do not occupy the full varint width.
 
-The proto3 specification standardizes six wire types (Table~\ref{tab:wire_types}), with types 3 and 4 deprecated in modern protocols.
-
-\begin{table}[ht]
-\centering
-\caption{Protocol Buffers Wire Type Mapping}
-\label{tab:wire_types}
-\renewcommand{\arraystretch}{1.15}
-\setlength{\tabcolsep}{2.5pt}
-\scriptsize
-\begin{tabular}{|c|l|p{4.2cm}|}
-\hline
-\textbf{ID} & \textbf{Wire Format} & \textbf{Associated Scalar Types} \\ \hline
-0 & Varint & \raggedright \texttt{int32, int64, uint32, uint64, bool, enum} \tabularnewline \hline
-1 & 64-bit Fixed & \texttt{fixed64, sfixed64, double} \\ \hline
-2 & Length-delim. & \texttt{string, bytes}, submessages, packed \\ \hline
-5 & 32-bit Fixed & \texttt{fixed32, sfixed32, float} \\ \hline
-\end{tabular}
-\end{table}
-
-Signed integers (\texttt{sint32}, \texttt{sint64}) use Zigzag encoding to map signed quantities to unsigned integers with minimal high-order bits:
-\begin{align}
-\text{Zigzag}_{32}(n) &= (n \ll 1) \oplus (n \gg 31) \\
-\text{Zigzag}_{64}(n) &= (n \ll 1) \oplus (n \gg 63)
-\end{align}
-
-\subsection{P1967: Resource Inclusion via \#embed}
-Before C++26, embedding non-C++ assets (such as IDL files, shaders, or schemas) into a translation unit required external build scripts generating C-style byte arrays (e.g., via \texttt{xxd -i}) or string literals. Proposal P1967 \cite{p1967} adds the \texttt{\#embed} preprocessor directive:
-\begin{lstlisting}[language=ModernC++]
-constexpr char proto_source[] = {
-    #embed "addressbook.proto"
-};
-\end{lstlisting}
-The compiler exposes the embedded binary content as a contiguous memory span directly inside the compiler front-end with zero runtime copying or separate build steps.
-
-\subsection{P2996: Static Reflection in C++26}
-Proposal P2996 \cite{p2996} provides a comprehensive static reflection facility for C++26 centered around the \texttt{std::meta::info} opaque type and the splice operator \texttt{[: ... :]}. Static reflection operates in three key dimensions:
-\begin{itemize}
-    \item \textbf{Introspection:} Querying entity properties and metadata (e.g., \texttt{\^{}\^{}T}, \texttt{members\_of()}).
-    \item \textbf{Generation:} Programmatically synthesizing member descriptors via builders (\texttt{define\_aggregate()}, \texttt{data\_member\_spec()}).
-    \item \textbf{Splicing:} Materializing reflected meta-entities into concrete declarations using \texttt{[: r :]}.
-\end{itemize}
-
-Combined with \texttt{constexpr} evaluation, P2996 turns the C++ compiler into a programmable meta-compiler capable of digesting external domain-specific languages and generating optimal native types.
+\subsection{C++26 Language Facilities}
+Two ISO C++26 proposals make compile-time IDL ingestion possible. P1967 \cite{p1967} adds the \texttt{\#embed} directive, exposing an external file as a contiguous compile-time byte span without the external build scripts (\texttt{xxd -i} and similar) previously required. P2996 \cite{p2996} adds static reflection around the opaque \texttt{std::meta::info} type, supporting introspection (\texttt{\^{}\^{}T}, \texttt{members\_of()}), programmatic generation of member descriptors (\texttt{define\_aggregate()}, \texttt{data\_member\_spec()}), and splicing of reflected entities into concrete declarations (\texttt{[: r :]}). Combined with \texttt{constexpr} evaluation, the two turn the compiler front-end into a programmable meta-compiler capable of digesting an external domain-specific language and emitting native types.

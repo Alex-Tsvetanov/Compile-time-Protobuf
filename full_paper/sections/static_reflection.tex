@@ -1,0 +1,83 @@
+\section{Static Reflection and Type Generation}
+
+\subsection{C++26 P2996 Reflection Pipeline}
+Once the AST is parsed, \texttt{ctpb} uses C++26 static reflection to map the conceptual schema into a native aggregate type. The code generation logic utilizes \texttt{std::meta::info} reflection tokens and compile-time member descriptors:
+
+\begin{lstlisting}[language=ModernC++, caption={Programmatic Struct Member Injection}]
+template <fixed_string ProtoSource, fixed_string MessageName>
+consteval auto complete_message_struct(std::meta::info incomplete_type) {
+    using Schema = parse<ProtoSource, MessageName>;
+    constexpr auto count = Schema::field_count();
+    std::vector<std::meta::info> members;
+
+    auto append_member = [&]<std::size_t I>() {
+        constexpr auto info = Schema::get_field(I);
+        std::meta::info type_info = resolve_type_info(info.type);
+        if (info.is_repeated) {
+            type_info = std::meta::substitute(^^std::vector, {type_info});
+        }
+        members.push_back(std::meta::data_member_spec(
+            type_info, {.name = info.name}
+        ));
+    };
+
+    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+        (append_member.template operator()<Is>(), ...);
+    }(std::make_index_sequence<count>{});
+
+    return std::meta::define_aggregate(incomplete_type, members);
+}
+\end{lstlisting}
+
+\subsection{Type Mapping Rules}
+The mapping from proto3 primitive types to C++ native types is strict and deterministic (Table~\ref{tab:type_mapping}).
+
+\begin{table}[ht]
+\centering
+\caption{Proto3 to C++ Type Mapping in \texttt{ctpb}}
+\label{tab:type_mapping}
+\renewcommand{\arraystretch}{1.15}
+\setlength{\tabcolsep}{2.5pt}
+\scriptsize
+\begin{tabular}{|l|l|c|}
+\hline
+\textbf{Proto3 Type} & \textbf{C++26 Native Type} & \textbf{Layout / Size} \\ \hline
+\texttt{int32, sint32, sfixed32} & \texttt{std::int32\_t} & 4 bytes \\ \hline
+\texttt{uint32, fixed32} & \texttt{std::uint32\_t} & 4 bytes \\ \hline
+\texttt{int64, sint64, sfixed64} & \texttt{std::int64\_t} & 8 bytes \\ \hline
+\texttt{uint64, fixed64} & \texttt{std::uint64\_t} & 8 bytes \\ \hline
+\texttt{float} & \texttt{float} & 4 bytes \\ \hline
+\texttt{double} & \texttt{double} & 8 bytes \\ \hline
+\texttt{bool} & \texttt{bool} & 1 byte \\ \hline
+\texttt{string} & \texttt{std::string} & SSO buffer \\ \hline
+\texttt{bytes} & \texttt{std::vector<std::byte>} & 24 bytes \\ \hline
+\texttt{repeated T} & \texttt{std::vector<T>} & dynamic array \\ \hline
+\texttt{map<K, V>} & \texttt{std::unordered\_map<K,V>} & hash table \\ \hline
+\texttt{oneof} & \texttt{std::variant<...>} & tagged union \\ \hline
+\end{tabular}
+\end{table}
+
+\subsection{Macro-Free Message Definition and Direct Member Access}
+In addition to member generation, \texttt{ctpb} automatically provides:
+\begin{itemize}
+    \item \textbf{Direct Dot-Syntax Access:} Field identifiers are injected as first-class struct members (\texttt{p.name}, \texttt{p.id}, \texttt{p.email}).
+    \item \textbf{Reflective Serialization:} Non-intrusive \texttt{ctpb::encode} and \texttt{ctpb::decode} visitors traversing member descriptors reflectively.
+    \item \textbf{Equality Comparison:} Defaulted member-wise comparison operators.
+\end{itemize}
+
+At the user-facing interface, developers instantiate fully synthesized message types directly in pure C++ without preprocessor macros:
+\begin{lstlisting}[language=ModernC++, caption={Zero-Macro Reflection Interface in \texttt{ctpb}}]
+// Compile-time message synthesis via pure C++26 reflection
+consteval { ctpb::define_message<proto_source, "tutorial.Person">(); }
+using Person = ctpb::message_t<proto_source, "tutorial.Person">;
+
+Person p;
+p.name = "Alex I. Tsvetanov";
+p.id = 42;
+p.email = "atsvetanov@tu-sofia.bg";
+
+std::vector<std::byte> wire = ctpb::encode(p);
+auto decoded = ctpb::decode<Person>(wire);
+assert(decoded->name == "Alex I. Tsvetanov");
+\end{lstlisting}
+Every field offset, wire tag, and type check is verified at compile time with zero runtime dispatch.

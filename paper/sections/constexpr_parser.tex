@@ -1,54 +1,10 @@
-\section{Constexpr Lexing, Parsing, and AST Representation}
+\section{Constexpr Lexing and Parsing}
 
-\subsection{Zero-Copy Constexpr Tokenizer}
-The \texttt{ctpb::lexer} processes raw IDL strings during constant evaluation. Unlike runtime tokenizers that allocate memory for token lexemes, every identifier, keyword, and literal in \texttt{ctpb} is preserved as a lightweight \texttt{std::string\_view} referencing the original embedded source memory:
+\subsection{Zero-Copy Tokenizer}
+The \texttt{ctpb::lexer} processes raw IDL text during constant evaluation. Unlike runtime tokenizers that allocate storage for lexemes, every identifier, keyword, and literal is retained as a \texttt{std::string\_view} referencing the embedded source, so tokenization performs zero dynamic allocations. The lexer recognizes the proto3 keyword set (\texttt{syntax}, \texttt{package}, \texttt{import}, \texttt{message}, \texttt{enum}, \texttt{oneof}, \texttt{map}, \texttt{reserved}), integer and floating-point literals including hexadecimal, single- and multi-line comments, and punctuation, in $\mathcal{O}(N)$ time.
 
-\begin{lstlisting}[language=ModernC++, caption={Token Structure in \texttt{ctpb}}]
-struct token {
-    tok_kind         kind = tok_kind::eof;
-    std::string_view text;
-    std::int64_t     int_value = 0;
-    source_location  loc{};
-};
-\end{lstlisting}
+\subsection{Recursive-Descent Parser}
+The proto3 grammar is formalized into approximately fifty LL(1) productions, and the parser builds the structural AST in a single pass without backtracking. Message parsing dispatches on the leading token of each body element, recursing for nested messages and delegating to dedicated productions for enums, oneofs, maps, and reserved ranges; anything else is parsed as a field declaration.
 
-The lexer scans keywords (\texttt{syntax}, \texttt{package}, \texttt{import}, \texttt{message}, \texttt{enum}, \texttt{oneof}, \texttt{map}, \texttt{reserved}), numeric integer and floating-point literals (including hexadecimal \texttt{0x...}), single- and multi-line comments (\texttt{//}, \texttt{/* ... */}), and punctuation symbols in $\mathcal{O}(N)$ time with zero dynamic allocations.
-
-\subsection{Recursive-Descent Constexpr Parser}
-The proto3 grammar is formalized into approximately fifty LL(1) productions. The parser constructs the structural AST in a single pass without backtracking:
-
-\begin{lstlisting}[language=ModernC++, caption={Constexpr Message Parsing}]
-constexpr ast::message parser::parse_message() {
-    ast::message m;
-    lex_.next(); // 'message'
-    token n = expect(tok_kind::ident, "message name");
-    m.name = n.text;
-    expect_sym("{", "message body opening");
-
-    while (lex_.peek().kind != tok_kind::eof) {
-        token t = lex_.peek();
-        if (t.kind == tok_kind::sym && t.text == "}") {
-            lex_.next();
-            return m;
-        }
-        switch (t.kind) {
-            case tok_kind::kw_message: 
-                m.nested_messages.push_back(parse_message()); break;
-            case tok_kind::kw_enum:    
-                m.nested_enums.push_back(parse_enum()); break;
-            case tok_kind::kw_oneof:   
-                m.oneofs.push_back(parse_oneof()); break;
-            case tok_kind::kw_map:     
-                m.maps.push_back(parse_map_field()); break;
-            case tok_kind::kw_reserved: 
-                parse_reserved(m); break;
-            default:                   
-                m.fields.push_back(parse_field()); break;
-        }
-    }
-    throw parse_error("unterminated message");
-}
-\end{lstlisting}
-
-\subsection{Compile-Time Diagnostic Localization}
-When a syntax violation, invalid field number, or reserved field conflict occurs during \texttt{consteval} evaluation, \texttt{ctpb} triggers an intentional diagnostic error with embedded source line and column coordinates. Under ISO C++ constant evaluation rules, throwing an exception inside a \texttt{consteval} context terminates compilation and causes the compiler to display the localized error diagnostic in the compiler output stream.
+\subsection{Compile-Time Diagnostics}
+When a syntax violation, invalid field number, or reserved-field conflict is detected during \texttt{consteval} evaluation, \texttt{ctpb} raises an exception carrying the source line and column. Under ISO C++ constant-evaluation rules, throwing inside a \texttt{consteval} context terminates compilation, so the schema error surfaces as a localized compiler diagnostic rather than a runtime failure.
