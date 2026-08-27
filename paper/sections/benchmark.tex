@@ -10,7 +10,7 @@ To assess the practical viability of compile-time IDL reflection, we conducted r
 All benchmarks were executed inside the project's own \texttt{sleepingeight/clang-cpp-refl} Docker image, on an AMD Ryzen 5 3600 (6 cores, x86\_64, Ubuntu 24.04), compiled with Clang 21.0 (P2996 static reflection branch) under \texttt{-std=c++26 -freflection -O3} and linked against Protobuf 3.21.12. The full build, test, and benchmark pipeline is reproducible via the repository's \texttt{Dockerfile} \cite{ctpb2026} and the scripts in \texttt{benchmarks/}; raw output for every figure in this section is checked in under \texttt{benchmarks/results/}.
 
 \subsection{Compile-Time Schema Parsing Latency}
-We measured the \texttt{constexpr} parser's throughput on three schemas scaled by field count alone (5, 25, and 100 \texttt{int32} fields), each timed over $20{,}000$ iterations with a $2{,}000$-iteration warmup, median of seven trials (\texttt{benchmarks/eval\_compile\_time\_latency.sh}). Table~\ref{tab:compile_time_results} summarizes the parser performance.
+We measured the \texttt{constexpr} parser's throughput on three schemas scaled by field count alone (5, 25, and 100 \texttt{int32} fields), each timed over $20{,}000$ iterations with a $2{,}000$-iteration warmup, median of seven trials. Table~\ref{tab:compile_time_results} summarizes the parser performance.
 
 \begin{table}[ht]
 \centering
@@ -26,7 +26,7 @@ Large & 100 & $11.36\,\mu\text{s}$ & $88{,}013\,\text{parses/s}$ \\ \hline
 \end{tabular}
 \end{table}
 
-In comparison, invoking the external \texttt{protoc} executable in this same environment (median of seven trials, a 3-field schema) takes $7\,\text{ms}$ end to end: process creation, disk I/O, and code generation. \texttt{ctpb} processes equivalent schemas in $0.86$--$11.36\,\mu\text{s}$ depending on size, a $\sim 620\times$ to $\sim 8{,}150\times$ reduction in schema ingestion overhead (\texttt{benchmarks/results/protoc\_spawn\_time\_docker.txt}).
+In comparison, invoking the external \texttt{protoc} executable in this same environment (median of seven trials, a 3-field schema) takes $7\,\text{ms}$ end to end: process creation, disk I/O, and code generation. \texttt{ctpb} processes equivalent schemas in $0.86$--$11.36\,\mu\text{s}$ depending on size, a $\sim 620\times$ to $\sim 8{,}150\times$ reduction in schema ingestion overhead.
 
 \begin{figure}[ht]
 \centering
@@ -63,7 +63,7 @@ In comparison, invoking the external \texttt{protoc} executable in this same env
 
 \subsection{Runtime Serialization and Deserialization Throughput}
 \label{sec:runtime_comparison}
-We evaluated runtime wire encoding and decoding on an identical representative 3-field \texttt{Person} message (47-byte wire payload), benchmarked head-to-head against Google's official \texttt{libprotobuf}. Each figure is the median of seven trials of $10^6$ iterations with a $20{,}000$-iteration warmup (\texttt{benchmarks/eval\_runtime\_comparison\_lite.sh}; raw output in \texttt{benchmarks/results/runtime\_comparison\_lite\_docker.txt}), reporting a median rather than a single run so the result isn't one lucky (or unlucky) sample.
+We evaluated runtime wire encoding and decoding on an identical representative 3-field \texttt{Person} message (47-byte wire payload), benchmarked head-to-head against Google's official \texttt{libprotobuf}. Each figure is the median of seven trials of $10^6$ iterations with a $20{,}000$-iteration warmup, reporting a median rather than a single run so the result isn't one lucky (or unlucky) sample.
 
 \begin{table}[ht]
 \centering
@@ -167,7 +167,7 @@ External Shared Libraries & \textbf{0} & \texttt{libprotobuf.so} & \textbf{0} \\
 \end{tabular}
 \end{table}
 
-We evaluated the binary size and intermediate artifacts of a standalone application performing serialization and deserialization between \texttt{ctpb} and Google's \texttt{protoc} (Table~\ref{tab:binary_footprint}; raw output in \texttt{benchmarks/results/binary\_size\_docker.txt}):
+We evaluated the binary size and intermediate artifacts of a standalone application performing serialization and deserialization between \texttt{ctpb} and Google's \texttt{protoc} (Table~\ref{tab:binary_footprint}):
 \begin{itemize}
     \item \textbf{Elimination of Disk Artifacts:} For a single 3-field message, \texttt{protoc} emits 754 lines of C++ code (\texttt{.pb.h} and \texttt{.pb.cc}), whereas \texttt{ctpb} generates zero files, eliminating build artifact caching and disk I/O.
     \item \textbf{Standalone Executable Size:} In fully static deployments, \texttt{ctpb}'s stripped executable is only $18.3\,\text{KB}$ compared to $1.72\,\text{MB}$ for \texttt{protoc}---a $\mathbf{93.7\times}$ reduction in binary footprint. Google's \texttt{libprotobuf} statically bundles descriptor pools, reflection registries, mutex tables, and arena allocators, whereas \texttt{ctpb} compiles down solely to exact inlined field loops.

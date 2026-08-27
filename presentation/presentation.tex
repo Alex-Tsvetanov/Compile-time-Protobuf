@@ -13,7 +13,7 @@
 \usepackage{pgfplots}
 \pgfplotsset{compat=1.18}
 \usepackage{booktabs}
-\usepackage{microtype}
+\usepackage[expansion=false]{microtype}
 
 % Define modern colors
 \definecolor{primary}{RGB}{15, 32, 67}       % Deep Navy
@@ -418,16 +418,16 @@ int main() {
           \toprule
           \textbf{Schema} & \textbf{Fields} & \textbf{Latency} & \textbf{Throughput} \\
           \midrule
-          Small & 5 & $18.4\,\mu\text{s}$ & $54{,}340\,\text{parses/s}$ \\
-          Medium & 25 & $53.1\,\mu\text{s}$ & $18{,}814\,\text{parses/s}$ \\
-          Large & 100 & $194.2\,\mu\text{s}$ & $5{,}149\,\text{parses/s}$ \\
+          Small & 5 & $0.86\,\mu\text{s}$ & $1{,}164{,}144\,\text{parses/s}$ \\
+          Medium & 25 & $3.04\,\mu\text{s}$ & $329{,}164\,\text{parses/s}$ \\
+          Large & 100 & $11.36\,\mu\text{s}$ & $88{,}013\,\text{parses/s}$ \\
           \bottomrule
         \end{tabular}
       \end{table}
       \vspace{0.3em}
       \begin{alertblock}{Compilation Speedup}
-        \texttt{protoc} requires $15\text{--}45\,\text{ms}$ per schema.\\
-        \texttt{ctpb} completes in $< 55\,\mu\text{s}$ ($\mathbf{\sim 300\times\text{--}800\times}$ faster).
+        \texttt{protoc} requires $7\,\text{ms}$ per schema (median).\\
+        \texttt{ctpb} completes in $< 11.4\,\mu\text{s}$ ($\mathbf{\sim 620\times}$ to $\mathbf{\sim 8{,}150\times}$ faster).
       \end{alertblock}
     \end{column}
 
@@ -440,14 +440,14 @@ int main() {
           \toprule
           \textbf{Operation} & \textbf{\texttt{ctpb}} & \textbf{Google} & \textbf{Speedup} \\
           \midrule
-          \textbf{Encode} & $\mathbf{27.5\,\text{ns}}$ & $60.9\,\text{ns}$ & $\mathbf{2.21\times}$ (\textbf{+55\%}) \\
-          \textbf{Decode} & $\mathbf{57.8\,\text{ns}}$ & $130.8\,\text{ns}$ & $\mathbf{2.26\times}$ (\textbf{+56\%}) \\
+          \textbf{Encode} & $\mathbf{32.1\,\text{ns}}$ & $90.3\,\text{ns}$ & $\mathbf{2.81\times}$ \\
+          \textbf{Decode} & $\mathbf{128.0\,\text{ns}}$ & $218.6\,\text{ns}$ & $\mathbf{1.71\times}$ \\
           \bottomrule
         \end{tabular}
       \end{table}
       \vspace{0.3em}
-      \begin{exampleblock}{$>2.2\times$ Faster Across All Operations}
-        Single pre-allocation \texttt{byte\_size()} serialization reaches \textbf{36.36 MOps/s} ($1{,}630\,\text{MB/s}$); direct inlined decode reaches \textbf{17.29 MOps/s} ($775\,\text{MB/s}$)!
+      \begin{exampleblock}{Margin Holds Against \texttt{libprotobuf-lite} Too}
+        Single pre-allocation \texttt{byte\_size()} serialization reaches \textbf{31.15 MOps/s} ($1{,}396\,\text{MB/s}$); direct inlined decode reaches \textbf{7.81 MOps/s} ($350\,\text{MB/s}$). Against the leaner \texttt{libprotobuf-lite}: $\mathbf{3.06\times}$ encode, $\mathbf{1.69\times}$ decode.
       \end{exampleblock}
     \end{column}
   \end{columns}
@@ -466,10 +466,10 @@ int main() {
       \textbf{Metric} & \textbf{\texttt{ctpb} (P2996)} & \textbf{\texttt{protoc} (Dynamic)} & \textbf{\texttt{protoc} (Static)} \\
       \midrule
       \textbf{Generated Code Lines} & \textbf{0 lines} (0 files) & 754 lines & 754 lines \\
-      \textbf{Object File (\texttt{.o})} & \textbf{23 KB} & 31.5 KB & 31.5 KB \\
-      \textbf{Stripped Executable} & \textbf{19 KB} & 27 KB (+ 4.8 MB \texttt{.so}) & \textbf{1,752 KB} \\
-      \textbf{Text Section (\texttt{.text})} & \textbf{10.1 KB} & 16.4 KB & 1,731.9 KB \\
-      \textbf{Data Section (\texttt{.data})} & \textbf{0.7 KB} & 1.4 KB & 19.7 KB \\
+      \textbf{Object File (\texttt{.o})} & \textbf{21.9 KB} & 31.3 KB & 31.3 KB \\
+      \textbf{Stripped Executable} & \textbf{18.3 KB} & 26.9 KB (+ 2.9 MB \texttt{.so}) & \textbf{1,718.1 KB} \\
+      \textbf{Text Section (\texttt{.text})} & \textbf{9.8 KB} & 16.0 KB & 1,691.4 KB \\
+      \textbf{Data Section (\texttt{.data})} & \textbf{0.7 KB} & 1.4 KB & 19.2 KB \\
       \textbf{External Dependencies} & \textbf{0} & \texttt{libprotobuf.so}, \texttt{libz.so} & \textbf{0} \\
       \bottomrule
     \end{tabular}
@@ -477,7 +477,7 @@ int main() {
 
   \begin{columns}[T]
     \begin{column}{0.48\textwidth}
-      \begin{block}{$91\times$ Smaller Static Binary}
+      \begin{block}{$93.7\times$ Smaller Static Binary}
         Eliminates runtime descriptor pools, mutex registries, and arena allocators.
       \end{block}
     \end{column}
@@ -531,8 +531,8 @@ class grpc::SerializationTraits<T> {
       \textbf{Summary of Contributions:}
       \begin{enumerate}
         \item \textbf{Zero-Codegen IDL Pipeline:} Unified P1967 \texttt{\#embed}, \texttt{constexpr} parsing, and P2996 static reflection.
-        \item \textbf{High Performance:} Sub-$55\,\mu\text{s}$ schema parsing latency ($\mathbf{300\times}$ speedup) and $\mathbf{84.81\,\text{MB/s}}$ wire throughput.
-        \item \textbf{Minimal Footprint:} $\mathbf{91\times}$ binary size reduction ($19\,\text{KB}$ stripped executable) with zero disk code generation.
+        \item \textbf{High Performance:} Sub-$11.4\,\mu\text{s}$ schema parsing latency ($\mathbf{\sim 620\times}$ speedup) and $\mathbf{1{,}396\,\text{MB/s}}$ wire throughput, a margin that holds against \texttt{libprotobuf-lite} too.
+        \item \textbf{Minimal Footprint:} $\mathbf{93.7\times}$ binary size reduction ($18.3\,\text{KB}$ stripped executable) with zero disk code generation.
         \item \textbf{Ecosystem Interoperability:} 100\% wire parity with Google Protobuf and drop-in gRPC traits.
       \end{enumerate}
     \end{column}
