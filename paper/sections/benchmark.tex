@@ -10,7 +10,7 @@ To assess the practical viability of compile-time IDL reflection, we conducted r
 All benchmarks were executed inside the project's own \texttt{sleepingeight/clang-cpp-refl} Docker image, on an AMD Ryzen 5 3600 (6 cores, x86\_64, Ubuntu 24.04), compiled with Clang 21.0 (P2996 static reflection branch) under \texttt{-std=c++26 -freflection -O3} and linked against Protobuf 3.21.12. The full build, test, and benchmark pipeline is reproducible via the repository's \texttt{Dockerfile} \cite{ctpb2026} and the scripts in \texttt{benchmarks/}; raw output for every figure in this section is checked in under \texttt{benchmarks/results/}.
 
 \subsection{Compile-Time Schema Parsing Latency}
-We measured the \texttt{constexpr} parser's throughput on three schemas scaled by field count alone (5, 25, and 100 \texttt{int32} fields), each timed over $20{,}000$ iterations with a $2{,}000$-iteration warmup, median of seven trials. Table~\ref{tab:compile_time_results} summarizes the parser performance.
+We measured the \texttt{constexpr} parser's throughput on three schemas scaled by field count alone (5, 25, and 100 \texttt{int32} fields), each timed over $20{,}000$ iterations with a $2{,}000$-iteration warmup, over seven trials. Table~\ref{tab:compile_time_results} reports the median latency $\pm$ sample standard deviation across those trials.
 
 \begin{table}[ht]
 \centering
@@ -20,9 +20,9 @@ We measured the \texttt{constexpr} parser's throughput on three schemas scaled b
 \begin{tabular}{|l|c|c|c|}
 \hline
 \textbf{Schema Size} & \textbf{Fields} & \textbf{Latency / Parse} & \textbf{Throughput} \\ \hline
-Small & 5 & $0.86\,\mu\text{s}$ & $1{,}164{,}144\,\text{parses/s}$ \\ \hline
-Medium & 25 & $3.04\,\mu\text{s}$ & $329{,}164\,\text{parses/s}$ \\ \hline
-Large & 100 & $11.36\,\mu\text{s}$ & $88{,}013\,\text{parses/s}$ \\ \hline
+Small & 5 & $0.86 \pm 0.11\,\mu\text{s}$ & $1{,}164{,}144\,\text{parses/s}$ \\ \hline
+Medium & 25 & $3.04 \pm 0.23\,\mu\text{s}$ & $329{,}164\,\text{parses/s}$ \\ \hline
+Large & 100 & $11.36 \pm 0.73\,\mu\text{s}$ & $88{,}013\,\text{parses/s}$ \\ \hline
 \end{tabular}
 \end{table}
 
@@ -63,22 +63,22 @@ In comparison, invoking the external \texttt{protoc} executable in this same env
 
 \subsection{Runtime Serialization and Deserialization Throughput}
 \label{sec:runtime_comparison}
-We evaluated runtime wire encoding and decoding on an identical representative 3-field \texttt{Person} message (47-byte wire payload), benchmarked head-to-head against Google's official \texttt{libprotobuf}. Each figure is the median of seven trials of $10^6$ iterations with a $20{,}000$-iteration warmup, reporting a median rather than a single run so the result isn't one lucky (or unlucky) sample.
+We evaluated runtime wire encoding and decoding on an identical representative 3-field \texttt{Person} message (47-byte wire payload), benchmarked head-to-head against Google's official \texttt{libprotobuf}, over seven trials of $10^6$ iterations each with a $20{,}000$-iteration warmup. Latency is reported as median $\pm$ sample standard deviation across those trials, rather than a single run, so the result isn't one lucky (or unlucky) sample; throughput and speedup are derived from the median.
 
 \begin{table}[ht]
 \centering
-\caption{Runtime Performance Comparison: \texttt{ctpb} vs. Google \texttt{libprotobuf}}
+\caption{Runtime Performance: \texttt{ctpb} vs. \texttt{libprotobuf}}
 \label{tab:runtime_comparison}
 \renewcommand{\arraystretch}{1.2}
-\setlength{\tabcolsep}{3pt}
-\scriptsize
+\setlength{\tabcolsep}{2pt}
+\tiny
 \begin{tabular}{|l|c|c|c|c|}
 \hline
-\textbf{Framework / Operation} & \textbf{Latency} & \textbf{Throughput} & \textbf{Data Rate} & \textbf{Speedup} \\ \hline
-\textbf{\texttt{ctpb} Encode} & $\mathbf{32.11\,\text{ns}}$ & $\mathbf{31.15\,\text{MOps/s}}$ & $\mathbf{1{,}396.0\,\text{MB/s}}$ & $\mathbf{2.81\times}$ \\ \hline
-Google Protobuf Encode & $90.29\,\text{ns}$ & $11.08\,\text{MOps/s}$ & $496.4\,\text{MB/s}$ & $1.00\times$ \\ \hline\hline
-\textbf{\texttt{ctpb} Decode} & $\mathbf{127.99\,\text{ns}}$ & $\mathbf{7.81\,\text{MOps/s}}$ & $\mathbf{350.2\,\text{MB/s}}$ & $\mathbf{1.71\times}$ \\ \hline
-Google Protobuf Decode & $218.60\,\text{ns}$ & $4.58\,\text{MOps/s}$ & $205.0\,\text{MB/s}$ & $1.00\times$ \\ \hline
+\textbf{Framework / Operation} & \textbf{Latency (ns)} & \textbf{Throughput} & \textbf{Data Rate} & \textbf{Speedup} \\ \hline
+\textbf{\texttt{ctpb} Encode} & $\mathbf{32.1{\pm}1.0}$ & $\mathbf{31.15\,\text{MOps/s}}$ & $\mathbf{1{,}396.0\,\text{MB/s}}$ & $\mathbf{2.81\times}$ \\ \hline
+Google Protobuf Encode & $90.3{\pm}3.4$ & $11.08\,\text{MOps/s}$ & $496.4\,\text{MB/s}$ & $1.00\times$ \\ \hline\hline
+\textbf{\texttt{ctpb} Decode} & $\mathbf{128.0{\pm}5.9}$ & $\mathbf{7.81\,\text{MOps/s}}$ & $\mathbf{350.2\,\text{MB/s}}$ & $\mathbf{1.71\times}$ \\ \hline
+Google Protobuf Decode & $218.6{\pm}8.4$ & $4.58\,\text{MOps/s}$ & $205.0\,\text{MB/s}$ & $1.00\times$ \\ \hline
 \end{tabular}
 \end{table}
 
@@ -86,18 +86,18 @@ Full \texttt{libprotobuf} carries descriptor pools, reflection registries and ar
 
 \begin{table}[ht]
 \centering
-\caption{\texttt{ctpb} vs. \texttt{libprotobuf-lite} (same machine, medians)}
+\caption{Runtime Performance: \texttt{ctpb} vs. \texttt{libprotobuf-lite}}
 \label{tab:lite_comparison}
 \renewcommand{\arraystretch}{1.2}
-\setlength{\tabcolsep}{3pt}
-\scriptsize
+\setlength{\tabcolsep}{2pt}
+\tiny
 \begin{tabular}{|l|c|c|c|c|}
 \hline
-\textbf{Framework / Operation} & \textbf{Latency} & \textbf{Throughput} & \textbf{Data Rate} & \textbf{Speedup} \\ \hline
-\textbf{\texttt{ctpb} Encode} & $\mathbf{32.67\,\text{ns}}$ & $\mathbf{30.61\,\text{MOps/s}}$ & $\mathbf{1{,}371.9\,\text{MB/s}}$ & $\mathbf{3.06\times}$ \\ \hline
-\texttt{libprotobuf-lite} Encode & $99.93\,\text{ns}$ & $10.01\,\text{MOps/s}$ & $448.6\,\text{MB/s}$ & $1.00\times$ \\ \hline\hline
-\textbf{\texttt{ctpb} Decode} & $\mathbf{132.64\,\text{ns}}$ & $\mathbf{7.54\,\text{MOps/s}}$ & $\mathbf{337.9\,\text{MB/s}}$ & $\mathbf{1.69\times}$ \\ \hline
-\texttt{libprotobuf-lite} Decode & $223.67\,\text{ns}$ & $4.47\,\text{MOps/s}$ & $200.4\,\text{MB/s}$ & $1.00\times$ \\ \hline
+\textbf{Framework / Operation} & \textbf{Latency (ns)} & \textbf{Throughput} & \textbf{Data Rate} & \textbf{Speedup} \\ \hline
+\textbf{\texttt{ctpb} Encode} & $\mathbf{32.7{\pm}2.1}$ & $\mathbf{30.61\,\text{MOps/s}}$ & $\mathbf{1{,}371.9\,\text{MB/s}}$ & $\mathbf{3.06\times}$ \\ \hline
+\texttt{libprotobuf-lite} Encode & $99.9{\pm}12.4$ & $10.01\,\text{MOps/s}$ & $448.6\,\text{MB/s}$ & $1.00\times$ \\ \hline\hline
+\textbf{\texttt{ctpb} Decode} & $\mathbf{132.6{\pm}5.5}$ & $\mathbf{7.54\,\text{MOps/s}}$ & $\mathbf{337.9\,\text{MB/s}}$ & $\mathbf{1.69\times}$ \\ \hline
+\texttt{libprotobuf-lite} Decode & $223.7{\pm}10.0$ & $4.47\,\text{MOps/s}$ & $200.4\,\text{MB/s}$ & $1.00\times$ \\ \hline
 \end{tabular}
 \end{table}
 
