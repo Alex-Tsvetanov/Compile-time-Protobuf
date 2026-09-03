@@ -9,6 +9,7 @@ Text is written with `backticks` marking inline code spans, which are re-run
 in Courier New. Numbers are transcribed verbatim from the LaTeX sources; none
 are recomputed here.
 """
+import os
 import copy
 import docx
 from docx.shared import Pt, Inches, RGBColor
@@ -16,8 +17,9 @@ from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-TEMPLATE = "template.docx"
-OUTPUT = "Tsvetanov-ctpb-TELECOM2026.docx"
+HERE = os.path.dirname(os.path.abspath(__file__))
+TEMPLATE = os.path.join(HERE, "template.docx")
+OUTPUT = os.path.join(HERE, "Tsvetanov-ctpb-TELECOM2026.docx")
 
 doc = docx.Document(TEMPLATE)
 body = doc.element.body
@@ -321,16 +323,17 @@ p.add_run("Protocol Buffers, C++26, static reflection, #embed, "
 # ============================================================= I. INTRODUCTION
 add_p("Introduction", style="heading 1")
 add_p(
-    "Interface Definition Languages such as Google Protocol Buffers [1], "
-    "FlatBuffers [2], and Cap'n Proto [3] underpin distributed systems, "
-    "microservice architectures, and high-performance computing, offering "
-    "cross-language interoperability, compact wire encodings, and compatibility "
-    "guarantees across schema versions.", style="Body Text")
+    "Distributed systems and microservice architectures rely on Interface "
+    "Definition Languages such as Google Protocol Buffers [1], FlatBuffers [2] "
+    "and Cap'n Proto [3]. One schema definition serves several languages, the "
+    "encoding it produces is compact on the wire, and a message can gain fields "
+    "without breaking readers built against an earlier version of the schema.",
+    style="Body Text")
 add_p(
     "Protocol Buffers, however, depend on an external code generator. Building a "
     "C++ project that uses Protobuf requires the build system to invoke `protoc` "
     "and produce intermediate `.pb.h` and `.pb.cc` files. This imposes four "
-    "costs: intricate build rules and dependency graphs to track generated "
+    "costs: custom build rules and dependency graphs to track generated "
     "artifacts; version skew between the runtime `libprotobuf` and the build-time "
     "`protoc`, a frequent source of ABI mismatches; codebase bloat, since large "
     "systems generate hundreds of thousands of lines that slow incremental "
@@ -714,8 +717,9 @@ add_p(
     "of 1,396 MB/s encoding (2.81 times) and 350 MB/s decoding (1.71 times), "
     "margins that persist against the leaner `libprotobuf-lite` baseline, with "
     "bidirectional wire-format fidelity verified against `libprotobuf` itself. "
-    "Static reflection is a viable and, on this evidence, preferable foundation "
-    "for interface definition compilation in modern systems programming.",
+    "On this evidence static reflection is a practical foundation for interface "
+    "definition compilation, and on binary size and encoding throughput a better "
+    "one than an external generator.",
     style="Body Text")
 
 # ========================================================== ACKNOWLEDGMENT
