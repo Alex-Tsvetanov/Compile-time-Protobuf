@@ -698,9 +698,12 @@ add_p(
     "toolchain. The initial release covers wire serialization only; gRPC service "
     "stubs are deliberately out of scope, although the transport traits above "
     "show that `ctpb` types integrate with existing gRPC channels. Finally, "
-    "monolithic schemas containing hundreds of messages demand correspondingly "
-    "generous compiler constant-evaluation memory limits, since the entire AST is "
-    "materialized during translation. Future work targets the Well-Known Types "
+    "constant evaluation is bounded first by the compiler's step limit rather than "
+    "by memory: a single message of 300 `int32` fields compiles under Clang's "
+    "default of 1,048,576 steps and one of 301 does not. The bound is a flag rather "
+    "than a wall, since `-fconstexpr-steps=4194304` compiles a 1,000-field message, "
+    "but the default is low enough that a large schema meets it and `ctpb` does not "
+    "raise it. Future work targets the Well-Known Types "
     "(`Timestamp`, `Duration`), compile-time JSON mapping, and asynchronous stub "
     "synthesis.", style="Body Text")
 

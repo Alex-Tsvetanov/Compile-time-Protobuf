@@ -1,0 +1,37 @@
+WARNING: The requested image's platform (linux/amd64) does not match the detected host platform (linux/arm64/v8) and no specific platform was requested
+NO_GNU_TIME
+# ctpb constant-evaluation cost: what the COMPILER pays to ingest a schema
+# 2026-09-03T22:49:51Z
+# clang: clang version 21.0.0git (https://github.com/bloomberg/clang-p2996.git 2ea0a79fe7bb5f6fdb8c687ba0e21ab63696e7f7)
+# flags: -O3 -std=c++26 -freflection -stdlib=libstdc++ -I/workspace/include
+# each cell: one compilation, forced through constant evaluation by static_assert
+
+fields   status     wall_s       peak_rss_kb  note
+/out/run.sh: line 65: bc: command not found
+1        pass       ?            NA           ok
+/out/run.sh: line 65: bc: command not found
+5        pass       ?            NA           ok
+/out/run.sh: line 65: bc: command not found
+25       pass       ?            NA           ok
+/out/run.sh: line 65: bc: command not found
+100      pass       ?            NA           ok
+/out/run.sh: line 65: bc: command not found
+250      pass       ?            NA           ok
+/out/run.sh: line 65: bc: command not found
+500      FAIL       ?            NA           STEP_LIMIT_HIT
+    --- first 6 lines of diagnostics ---
+    /tmp/ce_500.cpp:513:15: error: static assertion expression is not an integral constant expression
+      513 | static_assert(field_count() == 500);
+          |               ^~~~~~~~~~~~~~~~~~~~
+    /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/string_view:230:7: note: constexpr evaluation hit maximum step limit; possible infinite loop?
+      230 |       { return this->_M_len; }
+          |       ^
+/out/run.sh: line 65: bc: command not found
+1000     FAIL       ?            NA           STEP_LIMIT_HIT
+    --- first 6 lines of diagnostics ---
+    /tmp/ce_1000.cpp:1013:15: error: static assertion expression is not an integral constant expression
+     1013 | static_assert(field_count() == 1000);
+          |               ^~~~~~~~~~~~~~~~~~~~~
+    /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/string_view:230:7: note: constexpr evaluation hit maximum step limit; possible infinite loop?
+      230 |       { return this->_M_len; }
+          |       ^

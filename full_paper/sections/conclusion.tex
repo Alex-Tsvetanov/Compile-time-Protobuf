@@ -2,7 +2,7 @@
 
 \subsection{Current Limitations}
 \texttt{ctpb} implements the core proto3 specification. Three limitations apply at present:
-Three limitations bound the present work. P2996 static reflection is currently available only in experimental branches of Clang and GCC, pending final ISO C++26 ratification. The initial release focuses on wire serialization, and RPC service stubs are intentionally omitted. Monolithic schemas with hundreds of messages require adequate compiler constant-evaluation memory limits.
+Three limitations bound the present work. P2996 static reflection is currently available only in experimental branches of Clang and GCC, pending final ISO C++26 ratification. The initial release focuses on wire serialization, and RPC service stubs are intentionally omitted. Constant evaluation is bounded first by the compiler's step limit rather than by memory: a single message of 300 \texttt{int32} fields compiles under Clang's default of $1{,}048{,}576$ steps and one of 301 does not, while \texttt{-fconstexpr-steps=4194304} compiles a 1{,}000-field message. The default is low enough that a large schema meets it, and \texttt{ctpb} does not raise it.
 
 \subsection{Future Work}
 Planned additions include Well-Known Types (\texttt{Timestamp}, \texttt{Duration}), compile-time JSON mapping (\texttt{protojson}), and asynchronous gRPC stub synthesis.
