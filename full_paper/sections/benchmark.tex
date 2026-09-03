@@ -1,11 +1,7 @@
 \section{Experimental Evaluation and Benchmarks}
 
-To assess the practical viability of compile-time IDL reflection, we conducted rigorous benchmarks evaluating:
-\begin{enumerate}
-    \item \textbf{Compile-Time Processing Latency:} The time required to parse and process schemas of varying complexity (Small: 5 fields, Medium: 25 fields, Large: 100 fields).
-    \item \textbf{Runtime Serialization Throughput:} Comparative message encoding and decoding throughput against Google's official \texttt{libprotobuf} reference implementation.
-    \item \textbf{Binary Footprint and Link Overhead:} Object file and executable sizes compared against Google \texttt{protoc} code-gen.
-\end{enumerate}
+To assess the practical viability of compile-time IDL reflection, we measured:
+The evaluation measures compile-time processing latency, the time to parse and process schemas of varying complexity (small at 5 fields, medium at 25, large at 100); runtime serialization throughput, encoding and decoding measured against Google's official \texttt{libprotobuf} reference implementation; and binary footprint, object file and executable sizes against Google \texttt{protoc} code generation.
 
 All benchmarks were executed inside the project's own \texttt{sleepingeight/clang-cpp-refl} Docker image, on an AMD Ryzen 5 3600 (6 cores, x86\_64, Ubuntu 24.04), compiled with Clang 21.0 (P2996 static reflection branch) under \texttt{-std=c++26 -freflection -O3} and linked against Protobuf 3.21.12. The full build, test, and benchmark pipeline is reproducible via the repository's \texttt{Dockerfile} \cite{ctpb2026} and the scripts in \texttt{benchmarks/}; raw output for every figure in this section is checked in under \texttt{benchmarks/results/}.
 
@@ -141,11 +137,7 @@ The margin against the fairer baseline does not shrink: encode is slightly wider
 \label{fig:runtime_throughput}
 \end{figure}
 
-As shown in Table~\ref{tab:runtime_comparison} and Figure~\ref{fig:runtime_throughput}, \texttt{ctpb} outperforms Google \texttt{libprotobuf} across both serialization and deserialization:
-\begin{itemize}
-    \item \textbf{Serialization / Encoding:} \texttt{ctpb} achieves a $\mathbf{2.81\times}$ throughput speedup ($32.11\,\text{ns}$ vs $90.29\,\text{ns}$ latency, $1{,}396.0\,\text{MB/s}$). This is enabled by compile-time field-size evaluation, exact single-buffer pre-allocation (\texttt{byte\_size()}), and direct raw-pointer serialization without intermediate reallocations or virtual dispatch.
-    \item \textbf{Deserialization / Decoding:} \texttt{ctpb} delivers a $\mathbf{1.71\times}$ throughput speedup ($127.99\,\text{ns}$ vs $218.60\,\text{ns}$ latency, $350.2\,\text{MB/s}$). Zero virtual table lookups, inlined unrolled wire field loops, and direct member memory assignment eliminate the arena and reflection overhead present in reference implementations.
-\end{itemize}
+As shown in Table~\ref{tab:runtime_comparison} and Figure~\ref{fig:runtime_throughput}, \texttt{ctpb} outperforms Google \texttt{libprotobuf} across both serialization and deserialization. On encoding, \texttt{ctpb} achieves a $\mathbf{2.81\times}$ throughput speedup ($32.11\,\text{ns}$ vs $90.29\,\text{ns}$ latency, $1{,}396.0\,\text{MB/s}$), which comes from compile-time field-size evaluation, exact single-buffer pre-allocation (\texttt{byte\_size()}), and direct raw-pointer serialization without intermediate reallocations or virtual dispatch. On decoding, it achieves a $\mathbf{1.71\times}$ throughput speedup ($127.99\,\text{ns}$ vs $218.60\,\text{ns}$ latency, $350.2\,\text{MB/s}$). Zero virtual table lookups, inlined unrolled wire field loops, and direct member memory assignment eliminate the arena and reflection overhead present in reference implementations.
 
 \subsection{Binary Footprint and Static Overhead Analysis}
 \begin{table}[ht]
@@ -167,19 +159,13 @@ External Shared Libraries & \textbf{0} & \texttt{libprotobuf.so} & \textbf{0} \\
 \end{tabular}
 \end{table}
 
-We evaluated the binary size and intermediate artifacts of a standalone application performing serialization and deserialization between \texttt{ctpb} and Google's \texttt{protoc} (Table~\ref{tab:binary_footprint}):
-\begin{itemize}
-    \item \textbf{Elimination of Disk Artifacts:} For a single 3-field message, \texttt{protoc} emits 754 lines of C++ code (\texttt{.pb.h} and \texttt{.pb.cc}), whereas \texttt{ctpb} generates zero files, eliminating build artifact caching and disk I/O.
-    \item \textbf{Standalone Executable Size:} In fully static deployments, \texttt{ctpb}'s stripped executable is only $18.3\,\text{KB}$ compared to $1.72\,\text{MB}$ for \texttt{protoc}---a $\mathbf{93.7\times}$ reduction in binary footprint. Google's \texttt{libprotobuf} statically bundles descriptor pools, reflection registries, mutex tables, and arena allocators, whereas \texttt{ctpb} compiles down solely to exact inlined field loops.
-    \item \textbf{Zero Third-Party Shared Dependencies:} The dynamic executable produced by \texttt{ctpb} links exclusively against standard system libraries (\texttt{libc}, \texttt{libstdc++}), eliminating dynamic shared library deployment risks (\texttt{libprotobuf.so}).
-\end{itemize}
+We evaluated the binary size and intermediate artifacts of a standalone application performing serialization and deserialization between \texttt{ctpb} and Google's \texttt{protoc} (Table~\ref{tab:binary_footprint}). For a single 3-field message, \texttt{protoc} emits 754 lines of C++ code (\texttt{.pb.h} and \texttt{.pb.cc}), whereas \texttt{ctpb} generates zero files, so there is no build artifact caching and no disk I/O.
+
+In fully static deployments, \texttt{ctpb}'s stripped executable is only $18.3\,\text{KB}$ compared to $1.72\,\text{MB}$ for \texttt{protoc}---a $\mathbf{93.7\times}$ reduction in binary footprint. Google's \texttt{libprotobuf} statically bundles descriptor pools, reflection registries, mutex tables, and arena allocators, whereas \texttt{ctpb} compiles down solely to exact inlined field loops. The dynamic executable produced by \texttt{ctpb} links exclusively against standard system libraries (\texttt{libc}, \texttt{libstdc++}); it carries no dependency on \texttt{libprotobuf.so}.
 
 \subsection{Reference Interoperability and gRPC Transport Parity}
 To establish protocol correctness, we performed dual-direction interoperability tests against Google's official \texttt{libprotobuf} reference implementation (3.21.12) and the \texttt{protoc} code generator \cite{protobuf_spec}. These tests cover scalar fields, strings, nested messages and enums, and, following a wire-format review that found the initial implementation mis-encoded them, \texttt{bytes} fields and packed repeated scalar fields as well.
-\begin{itemize}
-    \item \textbf{Reference to \texttt{ctpb} Decoding:} Messages populated and serialized using Google's \texttt{SerializeToString()} were decoded using \texttt{ctpb::decode<T>()}. Field values across scalars, signed zigzag integers, strings, enums, and nested messages matched with 100\% fidelity.
-    \item \textbf{\texttt{ctpb} to Reference Decoding:} Messages serialized via \texttt{ctpb::encode()} were parsed by Google's \texttt{ParseFromArray()}. All wire tags, varints, and length delimiters conformed exactly to the reference parser expectations.
-\end{itemize}
+Fidelity was checked in both directions. Messages populated and serialized with Google's \texttt{SerializeToString()} were decoded by \texttt{ctpb::decode<T>()}, and field values across scalars, signed zigzag integers, strings, enums and nested messages matched with 100\% fidelity. In the other direction, messages serialized by \texttt{ctpb::encode()} were parsed by Google's \texttt{ParseFromArray()}, and all wire tags, varints and length delimiters conformed exactly to what the reference parser expects.
 
 Furthermore, we validated compatibility with gRPC transport protocols \cite{grpc_spec}. In gRPC, messages are carried across HTTP/2 frames prefixed by a 5-byte header comprising a 1-byte compression flag and a 4-byte big-endian payload length:
 \vspace{-0.3em}
@@ -208,4 +194,4 @@ public:
 \end{lstlisting}
 \end{minipage}
 
-Automated tests verified that \texttt{ctpb} types enveloped in gRPC framing are correctly processed by standard gRPC server handlers, demonstrating drop-in transport parity.
+Automated tests verified that \texttt{ctpb} types enveloped in gRPC framing are correctly processed by standard gRPC server handlers.

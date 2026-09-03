@@ -58,12 +58,7 @@ The mapping from proto3 primitive types to C++ native types is strict and determ
 \end{table}
 
 \subsection{Macro-Free Message Definition and Direct Member Access}
-In addition to member generation, \texttt{ctpb} automatically provides:
-\begin{itemize}
-    \item \textbf{Direct Dot-Syntax Access:} Field identifiers are injected as first-class struct members (\texttt{p.name}, \texttt{p.id}, \texttt{p.email}).
-    \item \textbf{Reflective Serialization:} Non-intrusive \texttt{ctpb::encode} and \texttt{ctpb::decode} visitors traversing member descriptors reflectively.
-    \item \textbf{Equality Comparison:} Defaulted member-wise comparison operators.
-\end{itemize}
+In addition to member generation, \texttt{ctpb} provides the field identifiers as first-class struct members (\texttt{p.name}, \texttt{p.id}, \texttt{p.email}), non-intrusive \texttt{ctpb::encode} and \texttt{ctpb::decode} visitors that traverse the member descriptors reflectively, and defaulted member-wise comparison operators.
 
 At the user-facing interface, developers instantiate fully synthesized message types directly in pure C++ without preprocessor macros:
 \begin{lstlisting}[language=ModernC++, caption={Zero-Macro Reflection Interface in \texttt{ctpb}}]

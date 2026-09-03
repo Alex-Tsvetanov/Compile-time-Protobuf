@@ -1,15 +1,11 @@
 \section{Limitations and Future Work}
 
 \subsection{Current Limitations}
-While \texttt{ctpb} successfully implements the core proto3 specification, several areas remain open for future development:
-\begin{itemize}
-    \item \textbf{Compiler Availability:} P2996 static reflection is currently available in experimental branches of Clang and GCC, pending final ISO C++26 standard ratification.
-    \item \textbf{gRPC Service Stubs:} The initial release focuses on wire serialization; RPC service stubs are intentionally omitted.
-    \item \textbf{Compile-Time Memory Scaling:} Monolithic schemas with hundreds of messages require adequate compiler constant evaluation memory limits.
-\end{itemize}
+\texttt{ctpb} implements the core proto3 specification. Three limitations apply at present:
+Three limitations bound the present work. P2996 static reflection is currently available only in experimental branches of Clang and GCC, pending final ISO C++26 ratification. The initial release focuses on wire serialization, and RPC service stubs are intentionally omitted. Monolithic schemas with hundreds of messages require adequate compiler constant-evaluation memory limits.
 
 \subsection{Future Work}
-Future enhancements include supporting Well-Known Types (\texttt{Timestamp}, \texttt{Duration}), compile-time JSON mapping (\texttt{protojson}), and asynchronous gRPC stub synthesis.
+Planned additions include Well-Known Types (\texttt{Timestamp}, \texttt{Duration}), compile-time JSON mapping (\texttt{protojson}), and asynchronous gRPC stub synthesis.
 
 \section{Conclusion}
-In this paper, we presented \texttt{ctpb}, a modern header-only C++26 library that realizes the vision of compile-time Protocol Buffers serialization without external code generators. By uniting P1967 \texttt{\#embed}, \texttt{constexpr} recursive-descent parsing, and P2996 static reflection, \texttt{ctpb} compiles raw \texttt{.proto} schemas directly into type-safe, optimized C++ structures within the compiler front-end. Our empirical evaluation confirms sub-$11.4\,\mu\text{s}$ schema parsing latency, a $93.7\times$ reduction in standalone binary footprint, and runtime wire throughput reaching $1{,}396\,\text{MB/s}$ for serialization ($2.81\times$ speedup) and $350\,\text{MB/s}$ for deserialization ($1.71\times$ speedup) over Google's reference \texttt{libprotobuf}, a margin that holds against \texttt{libprotobuf-lite} as well. We demonstrate that static reflection provides a superior paradigm for interface definition compilation in modern systems programming.
+In this paper, we presented \texttt{ctpb}, a header-only library for C++26 that performs Protocol Buffers serialization without external code generators. By uniting P1967 \texttt{\#embed}, \texttt{constexpr} recursive-descent parsing, and P2996 static reflection, \texttt{ctpb} compiles raw \texttt{.proto} schemas directly into type-safe, optimized C++ structures within the compiler front-end. Our empirical evaluation confirms sub-$11.4\,\mu\text{s}$ schema parsing latency, a $93.7\times$ reduction in standalone binary footprint, and runtime wire throughput reaching $1{,}396\,\text{MB/s}$ for serialization ($2.81\times$ speedup) and $350\,\text{MB/s}$ for deserialization ($1.71\times$ speedup) over Google's reference \texttt{libprotobuf}, a margin that holds against \texttt{libprotobuf-lite} as well.

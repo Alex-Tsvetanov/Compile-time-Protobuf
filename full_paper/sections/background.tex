@@ -42,11 +42,7 @@ constexpr char proto_source[] = {
 The compiler exposes the embedded binary content as a contiguous memory span directly inside the compiler front-end with zero runtime copying or separate build steps.
 
 \subsection{P2996: Static Reflection in C++26}
-Proposal P2996 \cite{p2996} provides a comprehensive static reflection facility for C++26 centered around the \texttt{std::meta::info} opaque type and the splice operator \texttt{[: ... :]}. Static reflection operates in three key dimensions:
-\begin{itemize}
-    \item \textbf{Introspection:} Querying entity properties and metadata (e.g., \texttt{\^{}\^{}T}, \texttt{members\_of()}).
-    \item \textbf{Generation:} Programmatically synthesizing member descriptors via builders (\texttt{define\_aggregate()}, \texttt{data\_member\_spec()}).
-    \item \textbf{Splicing:} Materializing reflected meta-entities into concrete declarations using \texttt{[: r :]}.
-\end{itemize}
+Proposal P2996 \cite{p2996} provides a static reflection facility for C++26 centered around the \texttt{std::meta::info} opaque type and the splice operator \texttt{[: ... :]}. Static reflection operates in three dimensions:
+It supports introspection, querying entity properties and metadata through \texttt{\^{}\^{}T} and \texttt{members\_of()}; generation, synthesizing member descriptors programmatically through builders such as \texttt{define\_aggregate()} and \texttt{data\_member\_spec()}; and splicing, materializing reflected meta-entities into concrete declarations with \texttt{[: r :]}.
 
-Combined with \texttt{constexpr} evaluation, P2996 turns the C++ compiler into a programmable meta-compiler capable of digesting external domain-specific languages and generating optimal native types.
+Combined with \texttt{constexpr} evaluation, P2996 lets a translation unit consume an external domain-specific language and emit native types for it during compilation.
