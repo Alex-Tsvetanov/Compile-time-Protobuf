@@ -37,16 +37,16 @@ We evaluated encoding and decoding on a representative 3-field \texttt{Person} m
 \begin{tabular}{|l|c|c|c|c|}
 \hline
 \textbf{Framework / Operation} & \textbf{Latency (ns)} & \textbf{Throughput} & \textbf{Data Rate} & \textbf{Speedup} \\ \hline
-\textbf{\texttt{ctpb} Encode} & $\mathbf{32.1{\pm}1.0}$ & $\mathbf{31.15\,\text{MOps/s}}$ & $\mathbf{1{,}396.0\,\text{MB/s}}$ & $\mathbf{2.81\times}$ \\ \hline
-Google Protobuf Encode & $90.3{\pm}3.4$ & $11.08\,\text{MOps/s}$ & $496.4\,\text{MB/s}$ & $1.00\times$ \\ \hline\hline
-\textbf{\texttt{ctpb} Decode} & $\mathbf{128.0{\pm}5.9}$ & $\mathbf{7.81\,\text{MOps/s}}$ & $\mathbf{350.2\,\text{MB/s}}$ & $\mathbf{1.71\times}$ \\ \hline
-Google Protobuf Decode & $218.6{\pm}8.4$ & $4.58\,\text{MOps/s}$ & $205.0\,\text{MB/s}$ & $1.00\times$ \\ \hline
+\textbf{\texttt{ctpb} Encode} & $\mathbf{32.1{\pm}1.0}$ & $\mathbf{31.15\,\text{MOps/s}}$ & $\mathbf{1{,}396.0\,\text{MiB/s}}$ & $\mathbf{2.81\times}$ \\ \hline
+Google Protobuf Encode & $90.3{\pm}3.4$ & $11.08\,\text{MOps/s}$ & $496.4\,\text{MiB/s}$ & $1.00\times$ \\ \hline\hline
+\textbf{\texttt{ctpb} Decode} & $\mathbf{128.0{\pm}5.9}$ & $\mathbf{7.81\,\text{MOps/s}}$ & $\mathbf{350.2\,\text{MiB/s}}$ & $\mathbf{1.71\times}$ \\ \hline
+Google Protobuf Decode & $218.6{\pm}8.4$ & $4.58\,\text{MOps/s}$ & $205.0\,\text{MiB/s}$ & $1.00\times$ \\ \hline
 \end{tabular}
 \end{table}
 
 Encoding gains $2.81\times$ from compile-time field-size evaluation, exact single-buffer pre-allocation via \texttt{byte\_size()}, and raw-pointer writes free of reallocation and virtual dispatch. Decoding gains $1.71\times$ from inlined unrolled field loops and direct member assignment, avoiding the arena and descriptor machinery of the reference implementation.
 
-Because full \texttt{libprotobuf} carries descriptor pools, reflection registries, and arenas that \texttt{ctpb} does not implement, part of that margin measures absent features rather than the compile-time approach itself. We therefore repeated the comparison against \texttt{libprotobuf-lite} (\texttt{optimize\_for = LITE\_RUNTIME}), which strips them, on the same machine with the same script and iteration count. The margin does not shrink: $3.06\times$ encoding ($32.7 \pm 2.1\,\text{ns}$ versus $99.9 \pm 12.4\,\text{ns}$) and $1.69\times$ decoding ($132.6 \pm 5.5\,\text{ns}$ versus $223.7 \pm 10.0\,\text{ns}$). The speedup is therefore not an artifact of comparing against a heavier reference implementation.
+Because full \texttt{libprotobuf} carries descriptor pools, reflection registries, and arenas that \texttt{ctpb} does not implement, part of that margin measures absent features rather than the compile-time approach itself. The comparison was therefore repeated against \texttt{libprotobuf-lite} (\texttt{optimize\_for = LITE\_RUNTIME}), which strips them, on the same machine with the same script and iteration count. The margin does not shrink: $3.06\times$ encoding ($32.7 \pm 2.1\,\text{ns}$ versus $99.9 \pm 12.4\,\text{ns}$) and $1.69\times$ decoding ($132.6 \pm 5.5\,\text{ns}$ versus $223.7 \pm 10.0\,\text{ns}$). The speedup is therefore not an artifact of comparing against a heavier reference implementation.
 
 \subsection{Binary Footprint}
 \begin{table}[ht]

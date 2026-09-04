@@ -1,6 +1,7 @@
 \section{Introduction}
+\label{sec:introduction}
 
-Interface Definition Languages (IDLs) such as Google Protocol Buffers (Protobuf) \cite{protobuf_spec}, FlatBuffers \cite{flatbuffers}, and Cap'n Proto \cite{capnproto} have become foundational to distributed systems, microservice architectures, and high-performance computing. Protocol Buffers provide cross-language interoperability, compact wire encodings, and backward- and forward-compatibility guarantees.
+Distributed systems and microservice architectures rely on Interface Definition Languages such as Google Protocol Buffers \cite{protobuf_spec}, FlatBuffers \cite{flatbuffers} and Cap'n Proto \cite{capnproto}. One schema definition serves several languages, the encoding it produces is compact on the wire, and a message can gain fields without breaking readers built against an earlier version of the schema.
 
 Historically, Protocol Buffers rely on an external code generator, \texttt{protoc}. When compiling a C++ project that utilizes Protobuf schemas, the build system must execute \texttt{protoc} to generate intermediate \texttt{.pb.h} header files and \texttt{.pb.cc} implementation files. This workflow introduces engineering friction. Incorporating external code generators requires build rules (such as CMake \texttt{add\_custom\_command} or Bazel rules), tracking dependency directed acyclic graphs (DAGs), and synchronizing generator toolchains across development and production environments. Mismatches between the runtime \texttt{libprotobuf} library and the build-time \texttt{protoc} compiler binary frequently produce subtle ABI incompatibilities or compilation failures. For large enterprise systems with hundreds of messages, generated header files span hundreds of thousands of lines of code, placing memory pressure on compiler front-ends and slowing incremental builds. Finally, developers must maintain external build targets rather than expressing message schemas as native, compile-time entities within the C++ type system.
 
@@ -13,5 +14,5 @@ The primary contributions of this work are:
     \item We design a three-stage compile-time architecture that transforms raw IDL text into first-class C++ types entirely within the compiler front-end without intermediate disk I/O.
     \item We implement a zero-allocation, \texttt{constexpr} recursive-descent proto3 parser capable of validating schemas, parsing nested messages, enums, maps, oneofs, and reserved ranges at compile time.
     \item We demonstrate the application of C++26 P2996 static reflection to programmatically inject member fields, wire visitors, and equality operators.
-    \item We evaluate \texttt{ctpb}'s compile-time and runtime performance, showing schema parsing latencies under $11.4\,\mu\text{s}$ and wire serialization throughput exceeding $300\,\text{MB/s}$.
+    \item The evaluation covers \texttt{ctpb}'s compile-time and runtime performance, showing schema parsing latencies under $11.4\,\mu\text{s}$ and wire throughput above $1{,}390\,\text{MiB/s}$ encoding and $350\,\text{MiB/s}$ decoding.
 \end{enumerate}

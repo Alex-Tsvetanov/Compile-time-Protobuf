@@ -133,7 +133,28 @@ International Scientific Conference on Computer Science and Information Technolo
     \fancyfoot[C]{\thepage}
 
 \begin{abstract}
-Serialization frameworks like Protocol Buffers rely on external code generators (\texttt{protoc}) to translate schema definitions into intermediate C++ header and implementation files, introducing build-system complexity, toolchain version skew, and compilation bloat. In this paper, we present \texttt{ctpb}, a header-only C++26 library that eliminates external code generation entirely by performing compile-time IDL parsing and type synthesis using C++26 static reflection (P2996) and resource inclusion (P1967 \texttt{\#embed}). We design a three-stage compile-time pipeline where \texttt{.proto} schemas are tokenized and parsed into a lightweight Abstract Syntax Tree during constant evaluation, and subsequently materialized into first-class C++ structs with optimized wire serialization visitors. Benchmarks demonstrate compile-time schema parsing latencies under $11.4\,\mu\text{s}$ per message even for the largest schema tested, and runtime wire throughput of $1{,}396.0\,\text{MB/s}$ for serialization and $350.2\,\text{MB/s}$ for deserialization, a $2.81\times$ and $1.71\times$ speedup respectively over Google's official \texttt{libprotobuf}, a margin that holds against the leaner \texttt{libprotobuf-lite} baseline as well, verified through bidirectional wire-format interoperability testing against the reference implementation. Our findings show that static reflection provides a zero-overhead foundation for native IDL compilation in systems programming.
+Protocol Buffers rely on an external code generator, \texttt{protoc}, which a build must
+invoke to produce intermediate C++ files, and which brings custom build rules, version skew
+between the generator and the runtime library, and hundreds of thousands of generated lines
+in a large system. This paper presents \texttt{ctpb}, a header-only C++26 library that removes
+the generator by moving schema ingestion into the compiler front end, uniting P1967
+\texttt{\#embed} with P2996 static reflection so that a three-stage \texttt{constexpr}
+pipeline tokenizes a \texttt{.proto} schema, parses it to an abstract syntax tree during
+constant evaluation, and materializes it as first-class C++ structs with wire visitors. Two
+different costs are reported and should not be confused: the parser itself, compiled at
+\texttt{-O3} and executed at run time, processes the largest schema tested in under
+$11.4\,\mu\text{s}$, whereas the cost a build actually pays is incurred inside constant
+evaluation, and is bounded there not by memory but by the compiler's step limit, a single
+message of 300 \texttt{int32} fields compiling under Clang's default of $1{,}048{,}576$ steps
+and one of 301 not. At run time the generated code encodes at $1{,}396.0\,\text{MiB/s}$ and
+decodes at $350.2\,\text{MiB/s}$, $2.81\times$ and $1.71\times$ over Google's
+\texttt{libprotobuf} and holding against the leaner \texttt{libprotobuf-lite}, with
+bidirectional wire-format fidelity verified against the reference implementation and a
+stripped static executable of $18.3\,\text{KB}$ against $1.72\,\text{MB}$. Two limits bound
+the claim: P2996 exists only in experimental compiler branches pending ISO C++26
+ratification, so this is a demonstration of feasibility rather than a deployable library, and
+unknown fields are skipped rather than preserved, which differs in semantics from the
+reference implementation for any endpoint that re-encodes what it received.
 \end{abstract}
 
 \begin{IEEEkeywords}

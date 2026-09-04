@@ -96,6 +96,12 @@ if [ -f "$DIR/person_protoc_static" ]; then
 fi
 ls -lh "$DIR"/person_*_stripped
 
+# Exact byte counts. `ls -lh` rounds to 19K / 1.7M, which is not enough to
+# reproduce the footprint ratio quoted in the paper, so record the raw sizes too.
+echo
+echo "Exact sizes (bytes):"
+stat -c '%s\t%n' "$DIR"/person_*_stripped 2>/dev/null || stat -f '%z%t%N' "$DIR"/person_*_stripped
+
 echo ""
 echo "================================================================"
 echo "5. SECTION BREAKDOWN OF STRIPPED EXECUTABLES (size)"

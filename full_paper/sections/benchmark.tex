@@ -1,6 +1,5 @@
 \section{Experimental Evaluation and Benchmarks}
 
-To assess the practical viability of compile-time IDL reflection, we measured:
 The evaluation measures compile-time processing latency, the time to parse and process schemas of varying complexity (small at 5 fields, medium at 25, large at 100); runtime serialization throughput, encoding and decoding measured against Google's official \texttt{libprotobuf} reference implementation; and binary footprint, object file and executable sizes against Google \texttt{protoc} code generation.
 
 All benchmarks were executed inside the project's own \texttt{sleepingeight/clang-cpp-refl} Docker image, on an AMD Ryzen 5 3600 (6 cores, x86\_64, Ubuntu 24.04), compiled with Clang 21.0 (P2996 static reflection branch) under \texttt{-std=c++26 -freflection -O3} and linked against Protobuf 3.21.12. The full build, test, and benchmark pipeline is reproducible via the repository's \texttt{Dockerfile} \cite{ctpb2026} and the scripts in \texttt{benchmarks/}; raw output for every figure in this section is checked in under \texttt{benchmarks/results/}.
@@ -71,14 +70,14 @@ We evaluated runtime wire encoding and decoding on an identical representative 3
 \begin{tabular}{|l|c|c|c|c|}
 \hline
 \textbf{Framework / Operation} & \textbf{Latency (ns)} & \textbf{Throughput} & \textbf{Data Rate} & \textbf{Speedup} \\ \hline
-\textbf{\texttt{ctpb} Encode} & $\mathbf{32.1{\pm}1.0}$ & $\mathbf{31.15\,\text{MOps/s}}$ & $\mathbf{1{,}396.0\,\text{MB/s}}$ & $\mathbf{2.81\times}$ \\ \hline
-Google Protobuf Encode & $90.3{\pm}3.4$ & $11.08\,\text{MOps/s}$ & $496.4\,\text{MB/s}$ & $1.00\times$ \\ \hline\hline
-\textbf{\texttt{ctpb} Decode} & $\mathbf{128.0{\pm}5.9}$ & $\mathbf{7.81\,\text{MOps/s}}$ & $\mathbf{350.2\,\text{MB/s}}$ & $\mathbf{1.71\times}$ \\ \hline
-Google Protobuf Decode & $218.6{\pm}8.4$ & $4.58\,\text{MOps/s}$ & $205.0\,\text{MB/s}$ & $1.00\times$ \\ \hline
+\textbf{\texttt{ctpb} Encode} & $\mathbf{32.1{\pm}1.0}$ & $\mathbf{31.15\,\text{MOps/s}}$ & $\mathbf{1{,}396.0\,\text{MiB/s}}$ & $\mathbf{2.81\times}$ \\ \hline
+Google Protobuf Encode & $90.3{\pm}3.4$ & $11.08\,\text{MOps/s}$ & $496.4\,\text{MiB/s}$ & $1.00\times$ \\ \hline\hline
+\textbf{\texttt{ctpb} Decode} & $\mathbf{128.0{\pm}5.9}$ & $\mathbf{7.81\,\text{MOps/s}}$ & $\mathbf{350.2\,\text{MiB/s}}$ & $\mathbf{1.71\times}$ \\ \hline
+Google Protobuf Decode & $218.6{\pm}8.4$ & $4.58\,\text{MOps/s}$ & $205.0\,\text{MiB/s}$ & $1.00\times$ \\ \hline
 \end{tabular}
 \end{table}
 
-Full \texttt{libprotobuf} carries descriptor pools, reflection registries and arena allocators that \texttt{ctpb} does not implement, so part of the margin above measures the absence of those features rather than the compile-time approach on its own. \texttt{libprotobuf-lite} (\texttt{optimize\_for = LITE\_RUNTIME}) strips them and is the baseline our own Related Work identifies as fair, so we repeated the comparison against it, same machine, same script, same iteration count (Table~\ref{tab:lite_comparison}).
+Full \texttt{libprotobuf} carries descriptor pools, reflection registries and arena allocators that \texttt{ctpb} does not implement, so part of the margin above measures the absence of those features rather than the compile-time approach on its own. \texttt{libprotobuf-lite} (\texttt{optimize\_for = LITE\_RUNTIME}) strips them and is the baseline the Related Work section identifies as fair, so the comparison was repeated against it, same machine, same script, same iteration count (Table~\ref{tab:lite_comparison}).
 
 \begin{table}[ht]
 \centering
@@ -90,14 +89,14 @@ Full \texttt{libprotobuf} carries descriptor pools, reflection registries and ar
 \begin{tabular}{|l|c|c|c|c|}
 \hline
 \textbf{Framework / Operation} & \textbf{Latency (ns)} & \textbf{Throughput} & \textbf{Data Rate} & \textbf{Speedup} \\ \hline
-\textbf{\texttt{ctpb} Encode} & $\mathbf{32.7{\pm}2.1}$ & $\mathbf{30.61\,\text{MOps/s}}$ & $\mathbf{1{,}371.9\,\text{MB/s}}$ & $\mathbf{3.06\times}$ \\ \hline
-\texttt{libprotobuf-lite} Encode & $99.9{\pm}12.4$ & $10.01\,\text{MOps/s}$ & $448.6\,\text{MB/s}$ & $1.00\times$ \\ \hline\hline
-\textbf{\texttt{ctpb} Decode} & $\mathbf{132.6{\pm}5.5}$ & $\mathbf{7.54\,\text{MOps/s}}$ & $\mathbf{337.9\,\text{MB/s}}$ & $\mathbf{1.69\times}$ \\ \hline
-\texttt{libprotobuf-lite} Decode & $223.7{\pm}10.0$ & $4.47\,\text{MOps/s}$ & $200.4\,\text{MB/s}$ & $1.00\times$ \\ \hline
+\textbf{\texttt{ctpb} Encode} & $\mathbf{32.7{\pm}2.1}$ & $\mathbf{30.61\,\text{MOps/s}}$ & $\mathbf{1{,}371.9\,\text{MiB/s}}$ & $\mathbf{3.06\times}$ \\ \hline
+\texttt{libprotobuf-lite} Encode & $99.9{\pm}12.4$ & $10.01\,\text{MOps/s}$ & $448.6\,\text{MiB/s}$ & $1.00\times$ \\ \hline\hline
+\textbf{\texttt{ctpb} Decode} & $\mathbf{132.6{\pm}5.5}$ & $\mathbf{7.54\,\text{MOps/s}}$ & $\mathbf{337.9\,\text{MiB/s}}$ & $\mathbf{1.69\times}$ \\ \hline
+\texttt{libprotobuf-lite} Decode & $223.7{\pm}10.0$ & $4.47\,\text{MOps/s}$ & $200.4\,\text{MiB/s}$ & $1.00\times$ \\ \hline
 \end{tabular}
 \end{table}
 
-The margin against the fairer baseline does not shrink: encode is slightly wider ($3.06\times$ vs.\ $2.81\times$) and decode is within $0.02\times$ of the full-library margin. The speedup is not merely an artifact of comparing against a heavier reference implementation.
+The margin against the fairer baseline does not shrink: encode is slightly wider ($3.06\times$ vs.\ $2.81\times$) and decode is within $0.02\times$ of the full-library margin. The speedup therefore does not come from comparing against a heavier reference implementation.
 
 \begin{figure}[ht]
 \centering
@@ -137,7 +136,7 @@ The margin against the fairer baseline does not shrink: encode is slightly wider
 \label{fig:runtime_throughput}
 \end{figure}
 
-As shown in Table~\ref{tab:runtime_comparison} and Figure~\ref{fig:runtime_throughput}, \texttt{ctpb} outperforms Google \texttt{libprotobuf} across both serialization and deserialization. On encoding, \texttt{ctpb} achieves a $\mathbf{2.81\times}$ throughput speedup ($32.11\,\text{ns}$ vs $90.29\,\text{ns}$ latency, $1{,}396.0\,\text{MB/s}$), which comes from compile-time field-size evaluation, exact single-buffer pre-allocation (\texttt{byte\_size()}), and direct raw-pointer serialization without intermediate reallocations or virtual dispatch. On decoding, it achieves a $\mathbf{1.71\times}$ throughput speedup ($127.99\,\text{ns}$ vs $218.60\,\text{ns}$ latency, $350.2\,\text{MB/s}$). Zero virtual table lookups, inlined unrolled wire field loops, and direct member memory assignment eliminate the arena and reflection overhead present in reference implementations.
+As shown in Table~\ref{tab:runtime_comparison} and Figure~\ref{fig:runtime_throughput}, \texttt{ctpb} outperforms Google \texttt{libprotobuf} across both serialization and deserialization. On encoding, \texttt{ctpb} achieves a $\mathbf{2.81\times}$ throughput speedup ($32.11\,\text{ns}$ vs $90.29\,\text{ns}$ latency, $1{,}396.0\,\text{MiB/s}$), which comes from compile-time field-size evaluation, exact single-buffer pre-allocation (\texttt{byte\_size()}), and direct raw-pointer serialization without intermediate reallocations or virtual dispatch. On decoding, it achieves a $\mathbf{1.71\times}$ throughput speedup ($127.99\,\text{ns}$ vs $218.60\,\text{ns}$ latency, $350.2\,\text{MiB/s}$). Zero virtual table lookups, inlined unrolled wire field loops, and direct member memory assignment eliminate the arena and reflection overhead present in reference implementations.
 
 \subsection{Binary Footprint and Static Overhead Analysis}
 \begin{table}[ht]

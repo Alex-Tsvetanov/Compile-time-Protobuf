@@ -105,10 +105,10 @@ int main() {
     std::printf("Single Message Size  : %zu bytes\n", payload_bytes);
     std::printf("-----------------------------------------------------\n");
     std::printf("Encode Latency       : %.2f ns/op\n", (static_cast<double>(enc_us) * 1000.0) / N);
-    std::printf("Encode Throughput    : %.2f M ops/sec (%.2f MB/sec)\n", enc_ops_sec / 1e6, enc_mb_sec);
+    std::printf("Encode Throughput    : %.2f M ops/sec (%.2f MiB/sec)\n", enc_ops_sec / 1e6, enc_mb_sec);
     std::printf("-----------------------------------------------------\n");
     std::printf("Decode Latency       : %.2f ns/op\n", (static_cast<double>(dec_us) * 1000.0) / N);
-    std::printf("Decode Throughput    : %.2f M ops/sec (%.2f MB/sec)\n", dec_ops_sec / 1e6, dec_mb_sec);
+    std::printf("Decode Throughput    : %.2f M ops/sec (%.2f MiB/sec)\n", dec_ops_sec / 1e6, dec_mb_sec);
     std::printf("=====================================================\n");
 
     return 0;

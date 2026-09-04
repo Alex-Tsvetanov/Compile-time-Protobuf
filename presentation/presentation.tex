@@ -447,7 +447,7 @@ int main() {
       \end{table}
       \vspace{0.3em}
       \begin{exampleblock}{Margin Holds Against \texttt{libprotobuf-lite} Too}
-        Single pre-allocation \texttt{byte\_size()} serialization reaches \textbf{31.15 MOps/s} ($1{,}396\,\text{MB/s}$); direct inlined decode reaches \textbf{7.81 MOps/s} ($350\,\text{MB/s}$). Against the leaner \texttt{libprotobuf-lite}: $\mathbf{3.06\times}$ encode, $\mathbf{1.69\times}$ decode.
+        Single pre-allocation \texttt{byte\_size()} serialization reaches \textbf{31.15 MOps/s} ($1{,}396\,\text{MiB/s}$); direct inlined decode reaches \textbf{7.81 MOps/s} ($350\,\text{MiB/s}$). Against the leaner \texttt{libprotobuf-lite}: $\mathbf{3.06\times}$ encode, $\mathbf{1.69\times}$ decode.
       \end{exampleblock}
     \end{column}
   \end{columns}
@@ -531,7 +531,7 @@ class grpc::SerializationTraits<T> {
       \textbf{Summary of Contributions:}
       \begin{enumerate}
         \item \textbf{Zero-Codegen IDL Pipeline:} Unified P1967 \texttt{\#embed}, \texttt{constexpr} parsing, and P2996 static reflection.
-        \item \textbf{High Performance:} Sub-$11.4\,\mu\text{s}$ schema parsing latency ($\mathbf{\sim 620\times}$ speedup) and $\mathbf{1{,}396\,\text{MB/s}}$ wire throughput, a margin that holds against \texttt{libprotobuf-lite} too.
+        \item \textbf{High Performance:} Sub-$11.4\,\mu\text{s}$ schema parsing latency ($\mathbf{\sim 620\times}$ speedup) and $\mathbf{1{,}396\,\text{MiB/s}}$ wire throughput, a margin that holds against \texttt{libprotobuf-lite} too.
         \item \textbf{Minimal Footprint:} $\mathbf{93.7\times}$ binary size reduction ($18.3\,\text{KB}$ stripped executable) with zero disk code generation.
         \item \textbf{Ecosystem Interoperability:} 100\% wire parity with Google Protobuf and drop-in gRPC traits.
       \end{enumerate}
