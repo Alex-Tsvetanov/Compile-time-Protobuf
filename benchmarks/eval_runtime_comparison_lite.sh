@@ -84,6 +84,14 @@ struct CtpbPerson : ctpb::reflect_base<PersonSchema, CtpbPerson> {
 };
 #endif
 
+// Keeps a value observable to the compiler without doing anything to it. Without this,
+// ctpb's encoder inlines completely and its result is assigned to a local nothing reads,
+// so at -O3 part of the work may be dropped; protobuf's call into a shared library cannot
+// be. The asymmetry ran one way only, in favour of the arm the optimiser could help.
+inline void sink(const void* p, std::size_t n) {
+    asm volatile("" :: "r"(p), "r"(n) : "memory");
+}
+
 double run_trial_encode_ns(const auto& make_ref, const auto& serialize) {
     for (int i = 0; i < ${WARMUP}; ++i) serialize();
     auto t0 = std::chrono::steady_clock::now();
@@ -114,11 +122,27 @@ int main() {
 
     std::printf("payload_bytes=%zu\n", payload_bytes);
 
+    std::string enc_buf;
+    enc_buf.resize(google_wire.size());
+    std::vector<std::byte> ctpb_buf(ctpb_wire.size());
+    ${ns}::Person dec_msg;
+
     for (int trial = 0; trial < ${TRIALS}; ++trial) {
-        double google_enc_ns = run_trial_encode_ns(nullptr, [&]{ std::string s; google_p.SerializeToString(&s); });
-        double ctpb_enc_ns   = run_trial_encode_ns(nullptr, [&]{ std::vector<std::byte> b = ctpb::encode(ctpb_p); });
-        double google_dec_ns = run_trial_encode_ns(nullptr, [&]{ ${ns}::Person d; d.ParseFromString(google_wire); });
-        double ctpb_dec_ns   = run_trial_encode_ns(nullptr, [&]{ auto d = ctpb::decode<CtpbPerson>(ctpb_wire); });
+        // Buffers and messages are allocated once per trial and reused. Before this each
+        // lambda built a fresh string, vector or message every iteration, so both arms
+        // were partly an allocator benchmark rather than an encoder one.
+        double google_enc_ns = run_trial_encode_ns(nullptr, [&]{
+            google_p.SerializeToArray(enc_buf.data(), static_cast<int>(enc_buf.size()));
+            sink(enc_buf.data(), enc_buf.size()); });
+        double ctpb_enc_ns   = run_trial_encode_ns(nullptr, [&]{
+            ctpb::encode_to_ptr(ctpb_p, ctpb_buf.data());
+            sink(ctpb_buf.data(), ctpb_buf.size()); });
+        double google_dec_ns = run_trial_encode_ns(nullptr, [&]{
+            dec_msg.Clear(); dec_msg.ParseFromString(google_wire);
+            sink(&dec_msg, sizeof(dec_msg)); });
+        double ctpb_dec_ns   = run_trial_encode_ns(nullptr, [&]{
+            auto d = ctpb::decode<CtpbPerson>(ctpb_wire);
+            sink(&d, sizeof(d)); });
         std::printf("trial=%d google_enc_ns=%.3f ctpb_enc_ns=%.3f google_dec_ns=%.3f ctpb_dec_ns=%.3f\n",
                     trial, google_enc_ns, ctpb_enc_ns, google_dec_ns, ctpb_dec_ns);
     }

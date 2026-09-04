@@ -94,60 +94,93 @@ int main() {
     assert(check_ctpb.has_value() && check_ctpb->name == name_val);
 
     // ==========================================
-    // Benchmark 1: Google Serialization
+    // The four benchmarks, interleaved and barriered
     // ==========================================
-    for (int i = 0; i < WARMUP; ++i) {
-        std::string s;
-        google_p.SerializeToString(&s);
-    }
-    auto t0 = clock::now();
-    for (int i = 0; i < N; ++i) {
-        std::string s;
-        google_p.SerializeToString(&s);
-    }
-    auto t1 = clock::now();
-    double google_enc_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count() / static_cast<double>(N);
+    //
+    // Three things this loop does that the earlier one did not, each of which could
+    // account for the whole reported margin on a 47-byte message.
+    //
+    // A barrier on both arms. ctpb's encoder is a constexpr-derived function that
+    // inlines completely, and its result was assigned to a local nothing read. At -O3
+    // the optimiser may drop part of that work. protobuf's SerializeToString is an
+    // opaque call into a shared library and cannot be dropped, so the asymmetry ran one
+    // way only: the faster arm was the one the compiler was allowed to help.
+    //
+    // Preallocated output on both arms. SerializeToString built a fresh std::string per
+    // iteration and ctpb::encode returned a fresh vector, so both arms were partly an
+    // allocator benchmark. They allocate symmetrically, which is fairer than it looks,
+    // but neither number was the encoder.
+    //
+    // Interleaving. The four blocks ran one after another, so any frequency or thermal
+    // drift over the run landed unevenly: whichever arm ran last carried it. Now the
+    // arms alternate inside one loop over rounds.
 
-    // ==========================================
-    // Benchmark 2: ctpb Serialization
-    // ==========================================
-    for (int i = 0; i < WARMUP; ++i) {
-        std::vector<std::byte> b = ctpb::encode(ctpb_p);
-    }
-    auto t2 = clock::now();
-    for (int i = 0; i < N; ++i) {
-        std::vector<std::byte> b = ctpb::encode(ctpb_p);
-    }
-    auto t3 = clock::now();
-    double ctpb_enc_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(t3 - t2).count() / static_cast<double>(N);
+    // Keeps a value observable to the compiler without doing anything to it.
+    auto sink = [](const void* p, std::size_t n) {
+        asm volatile("" :: "r"(p), "r"(n) : "memory");
+    };
 
-    // ==========================================
-    // Benchmark 3: Google Deserialization
-    // ==========================================
-    for (int i = 0; i < WARMUP; ++i) {
-        tutorial::Person dec;
-        dec.ParseFromString(google_wire);
-    }
-    auto t4 = clock::now();
-    for (int i = 0; i < N; ++i) {
-        tutorial::Person dec;
-        dec.ParseFromString(google_wire);
-    }
-    auto t5 = clock::now();
-    double google_dec_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(t5 - t4).count() / static_cast<double>(N);
+    // Output buffers, allocated once and reused by both arms.
+    std::string google_buf;
+    google_buf.resize(google_wire.size());
+    std::vector<std::byte> ctpb_buf(ctpb_wire.size());
 
-    // ==========================================
-    // Benchmark 4: ctpb Deserialization
-    // ==========================================
+    // Decode targets, constructed once and reused. A fresh protobuf message per
+    // iteration costs arena and descriptor work that is not parsing.
+    tutorial::Person google_dec;
+
+    double google_enc_ns = 0, ctpb_enc_ns = 0, google_dec_ns = 0, ctpb_dec_ns = 0;
+
+    constexpr int ROUNDS = 20;
+    constexpr int PER_ROUND = N / ROUNDS;
+
+    // Warmup, both arms, before either is timed.
     for (int i = 0; i < WARMUP; ++i) {
-        auto dec = ctpb::decode<CtpbPerson>(ctpb_wire);
+        google_p.SerializeToArray(google_buf.data(), static_cast<int>(google_buf.size()));
+        sink(google_buf.data(), google_buf.size());
+        ctpb::encode_to_ptr(ctpb_p, ctpb_buf.data());
+        sink(ctpb_buf.data(), ctpb_buf.size());
+        google_dec.Clear();
+        google_dec.ParseFromString(google_wire);
+        sink(&google_dec, sizeof(google_dec));
+        auto d = ctpb::decode<CtpbPerson>(std::as_bytes(std::span(google_wire)));
+        sink(&d, sizeof(d));
     }
-    auto t6 = clock::now();
-    for (int i = 0; i < N; ++i) {
-        auto dec = ctpb::decode<CtpbPerson>(ctpb_wire);
+
+    for (int r = 0; r < ROUNDS; ++r) {
+        auto a0 = clock::now();
+        for (int i = 0; i < PER_ROUND; ++i) {
+            google_p.SerializeToArray(google_buf.data(), static_cast<int>(google_buf.size()));
+            sink(google_buf.data(), google_buf.size());
+        }
+        auto a1 = clock::now();
+        for (int i = 0; i < PER_ROUND; ++i) {
+            ctpb::encode_to_ptr(ctpb_p, ctpb_buf.data());
+            sink(ctpb_buf.data(), ctpb_buf.size());
+        }
+        auto a2 = clock::now();
+        for (int i = 0; i < PER_ROUND; ++i) {
+            google_dec.Clear();
+            google_dec.ParseFromString(google_wire);
+            sink(&google_dec, sizeof(google_dec));
+        }
+        auto a3 = clock::now();
+        for (int i = 0; i < PER_ROUND; ++i) {
+            auto d = ctpb::decode<CtpbPerson>(std::as_bytes(std::span(google_wire)));
+            sink(&d, sizeof(d));
+        }
+        auto a4 = clock::now();
+
+        google_enc_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(a1 - a0).count();
+        ctpb_enc_ns   += std::chrono::duration_cast<std::chrono::nanoseconds>(a2 - a1).count();
+        google_dec_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(a3 - a2).count();
+        ctpb_dec_ns   += std::chrono::duration_cast<std::chrono::nanoseconds>(a4 - a3).count();
     }
-    auto t7 = clock::now();
-    double ctpb_dec_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(t7 - t6).count() / static_cast<double>(N);
+
+    google_enc_ns /= static_cast<double>(ROUNDS * PER_ROUND);
+    ctpb_enc_ns   /= static_cast<double>(ROUNDS * PER_ROUND);
+    google_dec_ns /= static_cast<double>(ROUNDS * PER_ROUND);
+    ctpb_dec_ns   /= static_cast<double>(ROUNDS * PER_ROUND);
 
     // Metrics computation
     double ctpb_enc_mops = 1e3 / ctpb_enc_ns;
@@ -169,13 +202,13 @@ int main() {
     std::printf("Message Payload Size : %zu bytes\n", payload_bytes);
     std::printf("-------------------------------------------------------------------\n");
     std::printf("1. SERIALIZATION / ENCODE:\n");
-    std::printf("   - ctpb            : %6.2f ns/op | %5.2f MOps/s | %6.2f MB/s\n", ctpb_enc_ns, ctpb_enc_mops, ctpb_enc_mbs);
-    std::printf("   - Google Protobuf : %6.2f ns/op | %5.2f MOps/s | %6.2f MB/s\n", google_enc_ns, google_enc_mops, google_enc_mbs);
+    std::printf("   - ctpb            : %6.2f ns/op | %5.2f MOps/s | %6.2f MiB/s\n", ctpb_enc_ns, ctpb_enc_mops, ctpb_enc_mbs);
+    std::printf("   - Google Protobuf : %6.2f ns/op | %5.2f MOps/s | %6.2f MiB/s\n", google_enc_ns, google_enc_mops, google_enc_mbs);
     std::printf("   -> Relative Ratio : %.2fx\n", google_enc_ns / ctpb_enc_ns);
     std::printf("-------------------------------------------------------------------\n");
     std::printf("2. DESERIALIZATION / DECODE:\n");
-    std::printf("   - ctpb            : %6.2f ns/op | %5.2f MOps/s | %6.2f MB/s\n", ctpb_dec_ns, ctpb_dec_mops, ctpb_dec_mbs);
-    std::printf("   - Google Protobuf : %6.2f ns/op | %5.2f MOps/s | %6.2f MB/s\n", google_dec_ns, google_dec_mops, google_dec_mbs);
+    std::printf("   - ctpb            : %6.2f ns/op | %5.2f MOps/s | %6.2f MiB/s\n", ctpb_dec_ns, ctpb_dec_mops, ctpb_dec_mbs);
+    std::printf("   - Google Protobuf : %6.2f ns/op | %5.2f MOps/s | %6.2f MiB/s\n", google_dec_ns, google_dec_mops, google_dec_mbs);
     std::printf("   -> Speedup (ctpb) : %.2fx (%.1f%% faster)\n", google_dec_ns / ctpb_dec_ns, ((google_dec_ns - ctpb_dec_ns) / google_dec_ns) * 100.0);
     std::printf("===================================================================\n");
 
