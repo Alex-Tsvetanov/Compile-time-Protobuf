@@ -58,9 +58,16 @@ The public API of \texttt{ctpb} provides a single-line interface for message gen
 \begin{lstlisting}[language=ModernC++, caption={User API in \texttt{ctpb}}]
 #include <ctpb/ctpb.hpp>
 
+// The schema text, held as a compile-time string
+inline constexpr ctpb::fixed_string person_proto = R"(
+    syntax = "proto3";
+    package tutorial;
+    message Person { string name = 1; int32 id = 2; string email = 3; }
+)";
+
 // Compile-time schema synthesis
-consteval { ctpb::define_message<"person.proto", "tutorial.Person">(); }
-using Person = ctpb::message_t<"person.proto", "tutorial.Person">;
+consteval { ctpb::define_message<person_proto, "tutorial.Person">(); }
+using Person = ctpb::message_t<person_proto, "tutorial.Person">;
 
 Person p{};
 p.name = "Alex I. Tsvetanov";

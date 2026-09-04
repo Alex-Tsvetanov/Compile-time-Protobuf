@@ -30,11 +30,11 @@ consteval auto complete_message_struct(std::meta::info incomplete_type) {
 \end{lstlisting}
 
 \subsection{Type Mapping Rules}
-The mapping from proto3 primitive types to C++ native types is strict and deterministic (Table~\ref{tab:type_mapping}).
+The mapping from proto3 primitive types to C++ native types is strict and deterministic (Table~\ref{tab:type_mapping}). Two rows of that table describe the parser rather than the synthesiser. \texttt{map} and \texttt{oneof} are recognised by the grammar and built into the AST, where they are held in vectors separate from a message's fields; the reflection path enumerates fields alone, so neither is emitted as a member today and no test exercises the path end to end. Under the P2996 branch a field whose type is an enum or a nested message likewise falls through the scalar chain and is emitted as \texttt{int}, which the C++20 fallback does handle. The subset the synthesiser covers is the scalar types, \texttt{string}, \texttt{bytes} and \texttt{repeated} of those, which is what the evaluation measures.
 
 \begin{table}[ht]
 \centering
-\caption{Proto3 to C++ Type Mapping in \texttt{ctpb}}
+\caption{Proto3 to C++ type mapping in \texttt{ctpb}. The last two rows are the intended mapping; the parser builds them and the reflection path does not yet emit them.}
 \label{tab:type_mapping}
 \renewcommand{\arraystretch}{1.15}
 \setlength{\tabcolsep}{2.5pt}
@@ -52,8 +52,8 @@ The mapping from proto3 primitive types to C++ native types is strict and determ
 \texttt{string} & \texttt{std::string} & SSO buffer \\ \hline
 \texttt{bytes} & \texttt{std::vector<std::byte>} & 24 bytes \\ \hline
 \texttt{repeated T} & \texttt{std::vector<T>} & dynamic array \\ \hline
-\texttt{map<K, V>} & \texttt{std::unordered\_map<K,V>} & hash table \\ \hline
-\texttt{oneof} & \texttt{std::variant<...>} & tagged union \\ \hline
+\texttt{map<K, V>} & \texttt{std::unordered\_map<K,V>} & parsed, not yet synthesised \\ \hline
+\texttt{oneof} & \texttt{std::variant<...>} & parsed, not yet synthesised \\ \hline
 \end{tabular}
 \end{table}
 
