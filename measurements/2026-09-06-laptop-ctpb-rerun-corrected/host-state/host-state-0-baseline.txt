@@ -1,0 +1,15 @@
+# host CPU state, point 0: BASELINE captured BEFORE any pin (the capture missed last run)
+  timestamp:  2026-09-06T12:58:33+03:00
+  governor:   powersave 
+  epp:        performance 
+  epp avail:  default performance balance_performance balance_power power custom 
+  driver:     amd-pstate-epp
+  min_freq:   1102866 
+  max_freq:   4465261 
+  boost:      1
+  AC online:  1
+
+NOTE: epp reads 'performance' here as a residue of the earlier campaign, not as the
+boot value -- boot EPP was never captured. This baseline is therefore the state to
+restore to for governor/min/max/boost, and for EPP it is 'as found before this second
+run', which is not the same thing as 'as booted'. A reboot resets EPP.

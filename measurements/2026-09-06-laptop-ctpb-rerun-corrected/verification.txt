@@ -1,0 +1,19 @@
+# verification of the derived image and the corrected mount
+timestamp: 2026-09-06T12:59:14+03:00
+
+## image identity (locally built, so it has no RepoDigest -- image ID is the record)
+image id:   sha256:699868a08613eb73eba8db97ad3d153aaad422123aac971f85d049abef17703d
+created:    2026-09-06T12:58:50.626635886+03:00
+platform:   linux/amd64
+base digest: sha256:22cbbd30b8bdec714ba5d06e60c9ff43a30e7cb27b8bd4b9f29a249d6597c426
+
+## protoc inside the derived image (must be 3.21.12 to match the committed results)
+libprotoc 3.21.12
+libprotobuf: 3.21.12
+/usr/lib/x86_64-linux-gnu/libprotobuf.so.32
+/usr/lib/x86_64-linux-gnu/libprotobuf.so.32.0.12
+
+## sentinel: does /workspace hold the LIVE checkout or the COPY-time snapshot?
+sentinel written to the repo on the host: SENTINEL-1788688754-15720
+seen at /workspace WITH the mount:    SENTINEL-1788688754-15720
+seen at /workspace WITHOUT the mount: ABSENT (this is the COPY-time snapshot -- proves the two differ)

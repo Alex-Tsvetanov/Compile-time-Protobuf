@@ -1,0 +1,8 @@
+# host CPU state: AFTER restore, read back
+  timestamp:  2026-09-06T13:01:09+03:00
+  governor:   powersave 
+  epp:        performance 
+  min_freq:   1102866 
+  max_freq:   4465261 
+  boost:      1
+  vs baseline (host-state-0): ok
