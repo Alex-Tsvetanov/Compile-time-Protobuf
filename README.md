@@ -355,3 +355,31 @@ published prose across the corpus, in `paper-io-portability` (7), `paper-wake-de
 `paper-methodology` (2). Further occurrences in `%` source comments are provenance, are never
 published, and must be left alone: rewriting them to a prose convention would damage the thing
 they exist for. No `.tex` file in any paper contains a hostname today.
+
+## Which sections are provisional, and what would change them
+
+Recorded 2026-09-06, before the framework re-measurement, so that a later pass knows what to
+re-check rather than re-deriving it. This is a forecast of exposure, not a defect list: nothing
+below is known to be wrong today.
+
+One pending framework change was checked against this corpus and does not reach it. The harness
+identity fix, which stops a mixed-implementation campaign being labelled Coroute, is
+**prospective only**: no deposited record in any of the seven repositories names a non-Coroute
+implementation, and every one carries a Coroute build commit. It gates cross-framework campaigns
+that have not been run, and invalidates nothing already published.
+
+**The benchmark section is provisional, but not because of the server framework's harness.**
+That reason was checked and does not hold: `method/campaign.sh` and
+`method/eval_runtime_prealloc.sh` in the 2026-09-06 record reference no part of that harness, no
+adapter, no campaign driver and no `loadgen`. This library is measured by its own scripts in its
+own Docker image, and a re-measurement of the web framework does not reach it.
+
+**What does expose it** is in its own record: `gates: none`. Those scripts have no validity
+gates, so nothing was accepted or refused, and every figure is one sitting on one host. If the
+gating discipline the methodology paper describes is ever applied here, the campaign is re-taken
+under a gated driver rather than re-labelled.
+
+**Also worth knowing:** the decode figure depends on a per-iteration allocation fix that lives in
+the record's `method/` as a diff against the committed evaluation script. Until that correction
+is merged into the committed harness, re-running the repository's own script reproduces the old
+asymmetry rather than the published number.
