@@ -47,4 +47,10 @@ paper/tpl_unpack/
 # whitelisted .log alone and the next campaign wrote .out. The problem was never the
 # extension: a record can carry any file type. Scope the exemption to the path instead.
 # Verified: no build writes into measurements/ in this repository.
+# PLACEMENT IS LOAD-BEARING, NOT TIDINESS. gitignore applies the LAST matching rule, and
+# *.out sits above this line. Moving this negation up beside the *.log rule it appears to
+# explain silently re-ignores every .out under measurements/ -- measured, not assumed:
+# with the negation before *.out, `git check-ignore measurements/set/x.out` says IGNORED;
+# after it, trackable. Keep this rule last. Test with a .out, not a .log: a .log passes
+# under the broken arrangement too, which is how this got through the first time.
 !measurements/**
