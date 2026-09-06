@@ -1,0 +1,26 @@
+# Unpinned companion run, 2026-09-06, taken to show the finding survives a free clock.
+# NOT a record: clock unpinned, boost on, no gates. Absolute ns are not comparable
+# with the committed corrected run. Only the direction and size of the ratio are.
+# governor=powersave boost=1 max_khz=4465261
+
+=== vs full libprotobuf ===
+payload_bytes=47
+trial=0 google_enc_ns=35.802 ctpb_enc_ns=6.859 google_dec_ns=66.043 ctpb_dec_ns=65.053
+trial=1 google_enc_ns=34.702 ctpb_enc_ns=6.777 google_dec_ns=66.609 ctpb_dec_ns=65.121
+trial=2 google_enc_ns=34.856 ctpb_enc_ns=6.716 google_dec_ns=66.289 ctpb_dec_ns=65.791
+trial=3 google_enc_ns=34.717 ctpb_enc_ns=6.844 google_dec_ns=65.046 ctpb_dec_ns=64.528
+trial=4 google_enc_ns=34.696 ctpb_enc_ns=6.801 google_dec_ns=65.882 ctpb_dec_ns=65.835
+trial=5 google_enc_ns=35.261 ctpb_enc_ns=6.890 google_dec_ns=64.583 ctpb_dec_ns=65.041
+trial=6 google_enc_ns=34.715 ctpb_enc_ns=6.731 google_dec_ns=64.910 ctpb_dec_ns=66.130
+trial=7 google_enc_ns=35.453 ctpb_enc_ns=6.895 google_dec_ns=66.021 ctpb_dec_ns=66.463
+
+=== vs libprotobuf-lite ===
+payload_bytes=47
+trial=0 google_enc_ns=37.569 ctpb_enc_ns=6.799 google_dec_ns=69.966 ctpb_dec_ns=71.930
+trial=1 google_enc_ns=38.677 ctpb_enc_ns=6.810 google_dec_ns=67.043 ctpb_dec_ns=70.754
+trial=2 google_enc_ns=38.640 ctpb_enc_ns=6.809 google_dec_ns=66.504 ctpb_dec_ns=70.480
+trial=3 google_enc_ns=38.726 ctpb_enc_ns=6.872 google_dec_ns=66.570 ctpb_dec_ns=70.527
+trial=4 google_enc_ns=38.814 ctpb_enc_ns=6.862 google_dec_ns=66.584 ctpb_dec_ns=70.488
+trial=5 google_enc_ns=38.703 ctpb_enc_ns=6.904 google_dec_ns=66.719 ctpb_dec_ns=69.986
+trial=6 google_enc_ns=38.527 ctpb_enc_ns=6.740 google_dec_ns=65.506 ctpb_dec_ns=68.811
+trial=7 google_enc_ns=38.526 ctpb_enc_ns=6.859 google_dec_ns=64.692 ctpb_dec_ns=68.856
