@@ -1,0 +1,3 @@
+BEFORE PIN: gov=powersave epp=balance_performance min=1102866 max=4465261 boost=1
+DURING: gov=performance epp=performance min=3200000 max=3200000 boost=0
+AFTER RESTORE: gov=powersave epp=balance_performance min=1102866 max=4465261 boost=1  verification=ok

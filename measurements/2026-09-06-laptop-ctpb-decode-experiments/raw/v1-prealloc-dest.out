@@ -1,0 +1,19 @@
+=== vs full libprotobuf ===
+payload_bytes=47
+trial=0 google_enc_ns=48.319 ctpb_enc_ns=9.221 google_dec_ns=89.354 ctpb_dec_ns=76.214
+trial=1 google_enc_ns=48.335 ctpb_enc_ns=9.241 google_dec_ns=89.373 ctpb_dec_ns=76.147
+trial=2 google_enc_ns=48.355 ctpb_enc_ns=9.225 google_dec_ns=89.362 ctpb_dec_ns=76.409
+trial=3 google_enc_ns=48.380 ctpb_enc_ns=9.262 google_dec_ns=87.142 ctpb_dec_ns=76.928
+trial=4 google_enc_ns=47.990 ctpb_enc_ns=9.221 google_dec_ns=87.121 ctpb_dec_ns=76.647
+trial=5 google_enc_ns=48.012 ctpb_enc_ns=9.221 google_dec_ns=87.144 ctpb_dec_ns=76.625
+trial=6 google_enc_ns=48.004 ctpb_enc_ns=9.218 google_dec_ns=87.241 ctpb_dec_ns=75.945
+
+=== vs libprotobuf-lite ===
+payload_bytes=47
+trial=0 google_enc_ns=47.734 ctpb_enc_ns=8.910 google_dec_ns=84.862 ctpb_dec_ns=77.050
+trial=1 google_enc_ns=47.710 ctpb_enc_ns=8.899 google_dec_ns=82.637 ctpb_dec_ns=76.670
+trial=2 google_enc_ns=48.000 ctpb_enc_ns=8.961 google_dec_ns=81.355 ctpb_dec_ns=77.516
+trial=3 google_enc_ns=47.404 ctpb_enc_ns=8.949 google_dec_ns=81.274 ctpb_dec_ns=77.503
+trial=4 google_enc_ns=47.327 ctpb_enc_ns=9.027 google_dec_ns=80.688 ctpb_dec_ns=77.187
+trial=5 google_enc_ns=46.082 ctpb_enc_ns=8.256 google_dec_ns=80.085 ctpb_dec_ns=77.099
+trial=6 google_enc_ns=46.734 ctpb_enc_ns=8.908 google_dec_ns=80.296 ctpb_dec_ns=77.264

@@ -1,0 +1,20 @@
+@@ -126,6 +126,7 @@
+     enc_buf.resize(google_wire.size());
+     std::vector<std::byte> ctpb_buf(ctpb_wire.size());
+     ${ns}::Person dec_msg;
++    CtpbPerson dec_ctpb{};
+ 
+     for (int trial = 0; trial < ${TRIALS}; ++trial) {
+         // Buffers and messages are allocated once per trial and reused. Before this each
+@@ -141,8 +142,9 @@
+             dec_msg.Clear(); dec_msg.ParseFromString(google_wire);
+             sink(&dec_msg, sizeof(dec_msg)); });
+         double ctpb_dec_ns   = run_trial_encode_ns(nullptr, [&]{
+-            auto d = ctpb::decode<CtpbPerson>(ctpb_wire);
+-            sink(&d, sizeof(d)); });
++            ctpb::wire::decode_error derr{};
++            dec_ctpb.decode_from(ctpb_wire, derr);
++            sink(&dec_ctpb, sizeof(dec_ctpb)); });
+         std::printf("trial=%d google_enc_ns=%.3f ctpb_enc_ns=%.3f google_dec_ns=%.3f ctpb_dec_ns=%.3f\n",
+                     trial, google_enc_ns, ctpb_enc_ns, google_dec_ns, ctpb_dec_ns);
+     }

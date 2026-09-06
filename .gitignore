@@ -17,12 +17,6 @@ ctpb.tag
 *.aux
 *.log
 
-# Measurement logs are records, not build noise. The bare *.log above is a LaTeX
-# rule and it silently ate 211 logs in paper-io-portability and a cited build.log in
-# paper-quic-cid-routing -- ignored files never show in git status, so the loss was
-# invisible for days. This negation is scoped to measurements/ and cannot affect any
-# LaTeX build directory.
-!measurements/**/*.log
 *.toc
 *.bbl
 *.blg
@@ -46,10 +40,20 @@ ctpb.tag
 paper/docx_preview.pdf
 paper/tpl_unpack/
 
-# Everything under measurements/ is a record, whatever its extension. This negation
-# MUST be the last rule in this file: gitignore applies the last match, so a bare
-# extension rule below it (e.g. *.out) silently re-ignores records. Measured, not
-# assumed: with the narrow form above and *.out later, a .out under measurements/ was
-# dropped and four raw outputs of the P5 decode experiments were lost that way.
-# Verified: no build writes into measurements/ in this repository.
+# Everything under measurements/ is a record, whatever its extension. The rules above are
+# LaTeX and build noise; they have now eaten measurement files three times -- 211 .log in
+# paper-io-portability, a cited build.log in paper-quic-cid-routing, and four .out files
+# that a published checksum manifest listed but the tree did not contain. The first fix
+# whitelisted .log alone and the next campaign wrote .out. The problem was never the
+# extension: a record can carry any file type. Scope the exemption to the path instead.
+# Verified: no build writes into measurements/ in this repository. A repository whose build
+# DOES write under measurements/ needs a narrower form than this -- stop on it rather than
+# forcing the uniform line.
+#
+# PLACEMENT IS LOAD-BEARING, NOT TIDINESS. gitignore applies the LAST matching rule, and
+# *.out sits above this line. Moving this negation up beside the *.log rule it appears to
+# explain silently re-ignores every .out under measurements/ -- measured, not assumed:
+# with the negation before *.out, `git check-ignore measurements/set/x.out` says IGNORED;
+# after it, trackable. Keep this rule last. Test with a .out, not a .log: a .log passes
+# under the broken arrangement too, which is how this got through the first time.
 !measurements/**

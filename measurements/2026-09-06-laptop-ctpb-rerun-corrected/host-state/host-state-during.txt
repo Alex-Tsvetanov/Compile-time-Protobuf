@@ -1,0 +1,8 @@
+# host CPU state: DURING the corrected campaign (pinned)
+  timestamp:  2026-09-06T12:59:41+03:00
+  governor:   performance 
+  epp:        performance 
+  min_freq:   3200000 
+  max_freq:   3200000 
+  boost:      0
+  AC online:  1

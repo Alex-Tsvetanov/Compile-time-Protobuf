@@ -1,0 +1,18 @@
+# host CPU state, point 3b of 3: AFTER restore, read back rather than assumed
+  timestamp:  2026-09-06T12:50:20+03:00
+  governor:    16 powersave;
+  epp:        performance
+  min_freq:   1102866 
+  max_freq:   4465261 
+  boost:      1
+
+target was the BOOT state observed at 12:40 before this session acted:
+  governor powersave x16, min 1102866, max 4465261, boost 1.
+  restore verification: ok
+
+CAVEAT, one knob not verifiable against boot state. energy_performance_preference was
+NOT captured before this session acted, so there is nothing to compare it to. It now
+reads `performance`, a residue of the governor change; the amd-pstate-epp default under
+the powersave governor is normally `balance_performance`. It was left as found rather
+than set to a guessed value, and a reboot resets it. Every other knob matched the boot
+state exactly.
