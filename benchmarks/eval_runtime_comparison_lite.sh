@@ -126,11 +126,24 @@ int main() {
     enc_buf.resize(google_wire.size());
     std::vector<std::byte> ctpb_buf(ctpb_wire.size());
     ${ns}::Person dec_msg;
+    CtpbPerson dec_ctpb{};
 
     for (int trial = 0; trial < ${TRIALS}; ++trial) {
-        // Buffers and messages are allocated once per trial and reused. Before this each
-        // lambda built a fresh string, vector or message every iteration, so both arms
-        // were partly an allocator benchmark rather than an encoder one.
+        // Buffers and messages are allocated once per trial and reused, in ALL FOUR
+        // lambdas. That is what this comment now covers and what it did not cover before:
+        // three of the four reused, the ctpb decode arm constructed a fresh CtpbPerson
+        // every iteration, and this comment sat above all four saying the problem was
+        // already solved. It is the reason nobody looked.
+        //
+        // The asymmetry it hid was not small. The protobuf arm reuses dec_msg and calls
+        // Clear(), which retains string capacity, so it decoded into memory it already
+        // held while ctpb allocated afresh -- an allocator difference charged to the
+        // decoder. Correcting it moves the ratio from 0.98x to 1.043x, and the two do not
+        // overlap. Both arms now decode into a destination that already exists, which is
+        // the comparison the paper reports.
+        //
+        // No ctpb change was needed: decode_from is a public member that fills an existing
+        // object, and its string fields assign into existing capacity.
         double google_enc_ns = run_trial_encode_ns(nullptr, [&]{
             google_p.SerializeToArray(enc_buf.data(), static_cast<int>(enc_buf.size()));
             sink(enc_buf.data(), enc_buf.size()); });
@@ -141,8 +154,9 @@ int main() {
             dec_msg.Clear(); dec_msg.ParseFromString(google_wire);
             sink(&dec_msg, sizeof(dec_msg)); });
         double ctpb_dec_ns   = run_trial_encode_ns(nullptr, [&]{
-            auto d = ctpb::decode<CtpbPerson>(ctpb_wire);
-            sink(&d, sizeof(d)); });
+            ctpb::wire::decode_error derr{};
+            dec_ctpb.decode_from(ctpb_wire, derr);
+            sink(&dec_ctpb, sizeof(dec_ctpb)); });
         std::printf("trial=%d google_enc_ns=%.3f ctpb_enc_ns=%.3f google_dec_ns=%.3f ctpb_dec_ns=%.3f\n",
                     trial, google_enc_ns, ctpb_enc_ns, google_dec_ns, ctpb_dec_ns);
     }
