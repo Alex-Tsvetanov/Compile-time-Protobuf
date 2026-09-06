@@ -260,8 +260,9 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) for detai
 
 ## Machine naming convention, to be applied when the prose is written
 
-Recorded 2026-09-06 from Alex via the coordinator. **Not yet applied to any paper.** It is
-here so that whoever writes the prose meets it before writing rather than after.
+Recorded 2026-09-06 from Alex via the coordinator, and revised the same day as the open
+questions were settled. **Not yet applied to any paper.** It is here so that whoever writes
+the prose meets it before writing rather than after.
 
 ### The convention
 
@@ -270,25 +271,29 @@ memory, OS and kernel version, and backend. Never a hostname, and never "the lap
 desktop" either. A nickname is anonymous but uninformative and does not scale to three hosts;
 a number plus a hardware row is both more anonymous and more useful.
 
-The number names the **hardware**, not an operating system. One host in this corpus has
-produced records under more than one OS, so "Machine 2 is the Windows one" is the wrong shape.
+The number names the **hardware**, and the operating system is a column rather than part of
+the identity. A machine may therefore have more than one row. Machine 2 has produced records
+under Windows natively, under WSL2 as the end-to-end generator host, and under Ubuntu in
+Docker for an earlier benchmark table, so "Machine 2 is the Windows one" would leave rows
+homeless.
 
-### The assignment, derived from the deposited environment captures
+### The assignment
 
 | | CPU | memory | OS / kernel | backends |
 |---|---|---|---|---|
-| Machine 1 | AMD Ryzen 7 5800H, 16 logical | 16,144,474,112 B (15.0 GiB) | Arch Linux, kernel `7.2.2-arch1-1` (a later campaign records 7.2.3) | epoll, io\_uring |
-| Machine 2 | AMD Ryzen 5 3600, 6 physical / 12 logical | **not captured** | Windows 11, build 10.0.26200 | IOCP; the end-to-end generator runs inside WSL2 |
-| Machine 3 | Apple M4 Pro | 25,769,803,776 B (24 GiB) | macOS 26, Darwin 25.6.0 | kqueue |
+| Machine 1 | AMD Ryzen 7 5800H, 16 logical | 16,144,474,112 B (15.04 GiB) | Arch Linux, kernel `7.2.2-arch1-1`; a later campaign records 7.2.3 | epoll, io\_uring |
+| Machine 2 | AMD Ryzen 5 3600 6-Core, 6 physical / 12 logical | 17,111,228,416 B (15.94 GiB) | Microsoft Windows 11 Pro N, 10.0.26200 | IOCP; WSL2 hosts the end-to-end generator; an earlier campaign ran Ubuntu 24.04 in Docker |
+| Machine 3 | Apple M4 Pro | 25,769,803,776 B (24.00 GiB) | macOS 26, Darwin `25.6.0` | kqueue |
 
-Counted from the 37 `*.env.json` in the corpus: 20 carry `machine.node` `alex-pc` with kernel
-release `11`, 13 carry `alex-laptop` with `7.2.2-arch1-1`, 2 carry a macOS asset tag with
-`25.6.0`, and 2 are the redacted pair described below.
+Machine 1 and Machine 3's rows come from the deposited environment captures. Counted across
+the 37 `*.env.json` in the corpus: 20 carry `machine.node` for Machine 2 with kernel release
+`11`, 13 carry Machine 1 with `7.2.2-arch1-1`, 2 carry Machine 3 with `25.6.0`, and 2 are the
+redacted pair described below.
 
-**Machine 2's memory row cannot be filled from any record.** `memory.total_bytes` is `null`
-in all 20 Windows captures and present in the other 17. Either the row says so explicitly or
-a fresh capture is needed; it is not recoverable from what is deposited, and it must not be
-guessed.
+**Machine 2's memory is not from a record.** `memory.total_bytes` is `null` in all 20 of its
+captures, so the figure above is a fresh reading taken on 2026-09-06, outside any campaign. A
+reader tracing it will not find it in an `env.json` and should know why. Its CPU and OS strings
+were confirmed against the records at the same time and do match them.
 
 ### What must not happen
 
@@ -307,29 +312,46 @@ is the bridge.** A reader verifying a figure fetches the record, recomputes the 
 which works, because nothing was edited — and reads the apparatus table to learn which machine
 it was. The hostname is never needed to check anything.
 
-### Three things the convention has to decide before it is applied
+### Settled questions, so they are not reopened
 
-1. **Record directory names carry the nicknames**, and are cited in published prose, not only
-   in comments: `2026-09-02-desktop-routing/`, `2026-09-04-laptop-wait-policy/`,
-   `2026-09-02-macos/`, `2026-09-03-macos-reuseport/`. P4's `limitations.tex` names
-   `measurements/2026-09-02-desktop-routing/` in a body sentence. Renaming the directories would
-   break every path citation and every manifest that lists them, which is the same trap as
-   editing `machine.node`. So either the directory names stay and the nickname survives there,
-   or the prose stops citing paths. That is Alex's call, not a writer's.
-2. **`INDEX.md` is not a home for the mapping.** It is byte-identical across four repositories
-   and absent from `paper-methodology` and `paper-wake-defect`, so a mapping placed there would
-   miss two of the six papers. That is why this section is in each repository's README instead.
-3. **The repositories are intended to become public.** All are private today, so there is no
-   live exposure, but 35 deposited `*.env.json` carry real hostnames, and the prohibition above
-   says they must keep them. Publishing the records as they stand and keeping fingerprints
-   verifiable are in tension, and the verification procedure's own answer — publish the
-   pre-redaction fingerprint alongside a redacted manifest — has been applied to 2 of 37. This
-   needs settling before anything goes public, and it is a decision rather than a writing task.
+**Record directory names keep their names, and the prose keeps citing them.** A record path is
+an identifier, not prose: `measurements/2026-09-02-desktop-routing/` in a body sentence is
+doing what a DOI does, and nobody anonymises a DOI to match a naming convention. Renaming would
+break every path citation and every manifest that lists those directories, which is the
+`machine.node` trap one level up. Note also that "desktop" there is a nickname and not a
+hostname — the hostnames appear in no `.tex` at all. The convention governs how a sentence
+refers to a machine, not the identifiers a sentence cites. Machine 2 in the prose, the real
+path in the citation.
+
+**`INDEX.md` is not the home for the mapping**, which is why this section is in each
+repository's README. It is byte-identical across four repositories and absent from
+`paper-methodology` and `paper-wake-defect`, and those two are among the three that carry the
+nicknames a pass would have to fix.
+
+### One question that resolves at publication, with its options
+
+The repositories are intended to become public once the development and the texts are done.
+All are private today, so there is no live exposure, and publication is months out: the
+framework comes first, then re-measurement, then the papers. It is recorded rather than
+resolved because it needs no answer yet.
+
+The tension is real. 35 deposited `*.env.json` carry real hostnames, and the section above
+forbids editing them because editing breaks the fingerprint that verifies them. Two options
+are legitimate:
+
+1. **Publish the records unedited.** Every fingerprint stays verifiable and a hostname appears
+   in an artefact, which is ordinary in published deposits.
+2. **Redact and ship the pre-redaction fingerprint** beside each altered manifest, which is
+   what section 4 of the verification procedure prescribes. It has been applied to 2 of 37.
+
+**Hand-editing hostnames without the companion fingerprint is the one option that is strictly
+wrong**, and it is the one already applied to the two manifests in
+`2026-09-04-laptop-wait-policy/`. Whichever option is chosen, those two need finishing.
 
 ### Scope of the eventual pass
 
 Prose only, and smaller than it looks: 12 occurrences of "the laptop" or "the desktop" in
 published prose across the corpus, in `paper-io-portability` (7), `paper-wake-defect` (3) and
-`paper-methodology` (2). Further occurrences in `%` source comments are provenance and are
-never published; they should be left alone unless they are wrong. No `.tex` file in any paper
-contains a hostname today.
+`paper-methodology` (2). Further occurrences in `%` source comments are provenance, are never
+published, and must be left alone: rewriting them to a prose convention would damage the thing
+they exist for. No `.tex` file in any paper contains a hostname today.
