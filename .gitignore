@@ -16,6 +16,13 @@ ctpb.tag
 # LaTeX
 *.aux
 *.log
+
+# Measurement logs are records, not build noise. The bare *.log above is a LaTeX
+# rule and it silently ate 211 logs in paper-io-portability and a cited build.log in
+# paper-quic-cid-routing -- ignored files never show in git status, so the loss was
+# invisible for days. This negation is scoped to measurements/ and cannot affect any
+# LaTeX build directory.
+!measurements/**/*.log
 *.toc
 *.bbl
 *.blg
