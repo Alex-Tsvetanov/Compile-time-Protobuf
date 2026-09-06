@@ -1,0 +1,7 @@
+trial=0 google_enc_ns=38.529 ctpb_enc_ns=7.117 google_dec_ns=72.875 ctpb_dec_ns=63.834
+trial=1 google_enc_ns=38.706 ctpb_enc_ns=7.228 google_dec_ns=71.735 ctpb_dec_ns=63.762
+trial=2 google_enc_ns=39.089 ctpb_enc_ns=7.115 google_dec_ns=71.914 ctpb_dec_ns=63.354
+trial=3 google_enc_ns=37.908 ctpb_enc_ns=6.738 google_dec_ns=69.728 ctpb_dec_ns=63.253
+trial=4 google_enc_ns=37.763 ctpb_enc_ns=6.711 google_dec_ns=69.486 ctpb_dec_ns=63.567
+trial=5 google_enc_ns=37.478 ctpb_enc_ns=6.698 google_dec_ns=69.697 ctpb_dec_ns=63.592
+trial=6 google_enc_ns=37.723 ctpb_enc_ns=6.667 google_dec_ns=70.150 ctpb_dec_ns=63.614

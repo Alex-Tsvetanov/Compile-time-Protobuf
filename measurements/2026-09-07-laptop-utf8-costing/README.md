@@ -1,5 +1,25 @@
 # What UTF-8 validation would cost ctpb — a costing, not an implementation
 
+> ## ⚠ SUPERSEDED BY MEASUREMENT. THE ESTIMATE BELOW IS WRONG.
+>
+> `measurements/2026-09-07-laptop-utf8-measured` implemented the validator and measured it
+> in place: the cost is **+0.129 ns on a ~60 ns decode, below the resolution of the
+> instrument**, and ctpb still beats libprotobuf-lite on decode.
+>
+> This document predicted a tie. It was wrong, and wrong for exactly the reason stated in
+> its own caveat: adding a standalone validator's cost to a measured decode overstates it
+> by roughly thirty-fold, because in place the validator walks a short string already in L1
+> that the decoder wrote microseconds earlier. **3.894 ns cold and alone; ~0.1 ns in situ.**
+>
+> The 3.894 and 39.956 figures below are still correct as measurements *of a standalone
+> validator*, and the 10× between them is still the reason the ASCII fast path is the
+> implementation rather than an optimisation on top of one. What does not survive is the
+> arithmetic that added either number to a decode time.
+>
+> Kept because the effort estimate — an afternoon, decided by establishing that
+> `decode_field_by_info` is not constexpr — held exactly, and because a prediction that was
+> wrong is worth more visible than deleted.
+
 proto3 requires `string` fields to be checked for structurally valid UTF-8 on parse.
 protobuf-lite does it and spends 7.37% inclusive doing so; ctpb omits it entirely, which is
 why the P5 decode comparison is not like-for-like. This prices the gap by **measuring a
