@@ -146,11 +146,13 @@ different costs are reported and should not be confused: the parser itself, comp
 $11.4\,\mu\text{s}$, whereas the cost a build actually pays is incurred inside constant
 evaluation, and is bounded there not by memory but by the compiler's step limit, a single
 message of 300 \texttt{int32} fields compiling under Clang's default of $1{,}048{,}576$ steps
-and one of 301 not. At run time the generated code encodes at $1{,}396.0\,\text{MiB/s}$ and
-decodes at $350.2\,\text{MiB/s}$, $2.81\times$ and $1.71\times$ over Google's
-\texttt{libprotobuf} and holding against the leaner \texttt{libprotobuf-lite}, with
-bidirectional wire-format fidelity verified against the reference implementation and a
-stripped static executable of $18.3\,\text{KB}$ against $1.72\,\text{MB}$. Two limits bound
+and one of 301 not. At run time the generated code encodes at $5{,}419.9\,\text{MiB/s}$,
+$5.57\times$ the \texttt{libprotobuf-lite} baseline and $5.33\times$ the full library.
+Decoding reaches parity rather than a margin, $1.04\times$ against the lite baseline, and
+that figure still contains a correctness asymmetry: \texttt{ctpb} omits the UTF-8 validation
+of \texttt{string} fields that proto3 requires and the reference implementation performs.
+Wire-format fidelity is verified bidirectionally against the reference implementation and a
+stripped static executable is $18{,}776$ bytes against $1{,}759{,}368$. Two limits bound
 the claim: P2996 exists only in experimental compiler branches pending ISO C++26
 ratification, so this is a demonstration of feasibility rather than a deployable library, and
 unknown fields are skipped rather than preserved, which differs in semantics from the

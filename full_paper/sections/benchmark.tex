@@ -2,7 +2,12 @@
 
 The evaluation measures compile-time processing latency, the time to parse and process schemas of varying complexity (small at 5 fields, medium at 25, large at 100); runtime serialization throughput, encoding and decoding measured against Google's official \texttt{libprotobuf} reference implementation; and binary footprint, object file and executable sizes against Google \texttt{protoc} code generation.
 
-All benchmarks were executed inside the project's own \texttt{sleepingeight/clang-cpp-refl} Docker image, on an AMD Ryzen 5 3600 (6 cores, x86\_64, Ubuntu 24.04), compiled with Clang 21.0 (P2996 static reflection branch) under \texttt{-std=c++26 -freflection -O3} and linked against Protobuf 3.21.12. The full build, test, and benchmark pipeline is reproducible via the repository's \texttt{Dockerfile} \cite{ctpb2026} and the scripts in \texttt{benchmarks/}, and raw output is checked in under \texttt{benchmarks/results/} for the parsing and throughput figures. Two sets of figures are quoted more precisely than their checked-in output supports and are to be re-taken before this paper is submitted: the footprint table, whose entries are given to a tenth of a kilobyte while the committed file records sizes only to the rounding of \texttt{ls\,-lh}, and the constant-evaluation threshold, whose committed output covers the coarse sweep rather than the bisection that locates it.
+Every figure in this section comes from one host in one pinned sitting on 6~September 2026: an AMD Ryzen~7 5800H, 16 logical CPUs, Linux 7.2.3, clock pinned to 3.2\,GHz with boost disabled and the setting verified by read-back against the state captured before pinning. The timed work ran in the project's \texttt{ctpb-dev:2026-09-06} image built from the repository's own \texttt{Dockerfile} \cite{ctpb2026}, compiled with Clang 21.0 (P2996 branch) under \texttt{-std=c++26 -freflection -O3} against Protobuf 3.21.12. Trial~0 is excluded as warm-up throughout and the exclusion is declared because it is not cosmetic: the reference implementation runs 4 to 6\,\% slow on trial~0 while \texttt{ctpb} moves by under $0.4\,\%$, so counting it would flatter \texttt{ctpb}. Spreads are the full range of the six retained trials rather than a standard deviation, because six points do not support one.
+
+These numbers replace those of the previous version rather than extending them. The earlier table was taken on a different machine, an AMD Ryzen~5 3600, under a harness this repository has since repudiated for three named defects, any one of which could account for the whole reported margin. That harness also decoded into a freshly constructed destination on the \texttt{ctpb} arm while reusing one on the reference arm, charging \texttt{ctpb} a heap allocation per iteration that its competitor did not pay. Re-measured on one host with that asymmetry removed, the encode margin roughly doubles and the decode margin falls well below what was previously printed. No \texttt{ctpb} code changed between the two campaigns; the instrument did. These cells carry no validity gates, because the scripts that produce them have none.
+% src: measurements/2026-09-06-laptop-p5-single-host/README.md (conditions, "What moved",
+%   "Two instrument defects found and fixed"); raw/host-state.txt; method/diff-from-committed-eval.txt;
+%   rerun_all.sh for the repudiation and the three defects
 
 \subsection{Compile-Time Schema Parsing Latency}
 We measured the \texttt{constexpr} parser's throughput on three schemas scaled by field count alone (5, 25, and 100 \texttt{int32} fields), each timed over $20{,}000$ iterations with a $2{,}000$-iteration warmup, over seven trials. Table~\ref{tab:compile_time_results} reports the median latency $\pm$ sample standard deviation across those trials.
@@ -15,13 +20,16 @@ We measured the \texttt{constexpr} parser's throughput on three schemas scaled b
 \begin{tabular}{|l|c|c|c|}
 \hline
 \textbf{Schema Size} & \textbf{Fields} & \textbf{Latency / Parse} & \textbf{Throughput} \\ \hline
-Small & 5 & $0.86 \pm 0.11\,\mu\text{s}$ & $1{,}164{,}144\,\text{parses/s}$ \\ \hline
-Medium & 25 & $3.04 \pm 0.23\,\mu\text{s}$ & $329{,}164\,\text{parses/s}$ \\ \hline
-Large & 100 & $11.36 \pm 0.73\,\mu\text{s}$ & $88{,}013\,\text{parses/s}$ \\ \hline
+Small & 5 & $0.646\,\mu\text{s}$ [$0.643$, $0.648$] & $1{,}547{,}988\,\text{parses/s}$ \\ \hline
+Medium & 25 & $2.515\,\mu\text{s}$ [$2.511$, $2.519$] & $397{,}614\,\text{parses/s}$ \\ \hline
+Large & 100 & $9.465\,\mu\text{s}$ [$9.438$, $9.484$] & $105{,}652\,\text{parses/s}$ \\ \hline
 \end{tabular}
 \end{table}
 
-In comparison, invoking the external \texttt{protoc} executable in this same environment (median of seven trials, a 3-field schema) takes $7\,\text{ms}$ end to end: process creation, disk I/O, and code generation. \texttt{ctpb} processes equivalent schemas in $0.86$--$11.36\,\mu\text{s}$ depending on size, a $\sim 620\times$ to $\sim 8{,}150\times$ reduction in schema ingestion overhead.
+A 100-field schema is ingested in $9.465\,\mu\text{s}$, comfortably under the $11.4\,\mu\text{s}$ this work has claimed for it. The end-to-end cost of invoking the external \texttt{protoc} executable was measured only under the repudiated harness and was not re-taken in this campaign, so the ratio between the two is not restated here.
+% src: raw/compile_time_latency.txt trials 1-6. The 7 ms protoc figure and the ~620x-8,150x
+%   reduction derived from it appear in no record of this campaign; combining a repudiated
+%   figure with a current one would put two instruments in one ratio.
 
 \begin{figure}[ht]
 \centering
@@ -32,7 +40,7 @@ In comparison, invoking the external \texttt{protoc} executable in this same env
     width=0.48\textwidth,
     height=5.2cm,
     ymin=0,
-    ymax=1300000,
+    ymax=1700000,
     ylabel={Throughput (Parses / sec)},
     symbolic x coords={Small (5), Medium (25), Large (100)},
     xtick=data,
@@ -46,9 +54,9 @@ In comparison, invoking the external \texttt{protoc} executable in this same env
     enlarge x limits=0.25
 ]
 \addplot[fill=blue!60, draw=blue!90] coordinates {
-    (Small (5), 1164144)
-    (Medium (25), 329164)
-    (Large (100), 88013)
+    (Small (5), 1547988)
+    (Medium (25), 397614)
+    (Large (100), 105652)
 };
 \end{axis}
 \end{tikzpicture}
@@ -70,10 +78,10 @@ We evaluated runtime wire encoding and decoding on an identical representative 3
 \begin{tabular}{|l|c|c|c|c|}
 \hline
 \textbf{Framework / Operation} & \textbf{Latency (ns)} & \textbf{Throughput} & \textbf{Data Rate} & \textbf{Speedup} \\ \hline
-\textbf{\texttt{ctpb} Encode} & $\mathbf{32.1{\pm}1.0}$ & $\mathbf{31.15\,\text{MOps/s}}$ & $\mathbf{1{,}396.0\,\text{MiB/s}}$ & $\mathbf{2.81\times}$ \\ \hline
-Google Protobuf Encode & $90.3{\pm}3.4$ & $11.08\,\text{MOps/s}$ & $496.4\,\text{MiB/s}$ & $1.00\times$ \\ \hline\hline
-\textbf{\texttt{ctpb} Decode} & $\mathbf{128.0{\pm}5.9}$ & $\mathbf{7.81\,\text{MOps/s}}$ & $\mathbf{350.2\,\text{MiB/s}}$ & $\mathbf{1.71\times}$ \\ \hline
-Google Protobuf Decode & $218.6{\pm}8.4$ & $4.58\,\text{MOps/s}$ & $205.0\,\text{MiB/s}$ & $1.00\times$ \\ \hline
+\textbf{\texttt{ctpb} Encode} & $\mathbf{8.56}$ [$8.55$, $8.56$] & $\mathbf{116.8\,\text{MOps/s}}$ & $\mathbf{5{,}236.3\,\text{MiB/s}}$ & $\mathbf{5.334\times}$ \\ \hline
+Google Protobuf Encode & $45.64$ [$45.62$, $45.65$] & $21.9\,\text{MOps/s}$ & $982.1\,\text{MiB/s}$ & $1.00\times$ \\ \hline\hline
+\textbf{\texttt{ctpb} Decode} & $\mathbf{76.33}$ [$75.75$, $76.71$] & $\mathbf{13.1\,\text{MOps/s}}$ & $\mathbf{587.2\,\text{MiB/s}}$ & $\mathbf{1.150\times}$ \\ \hline
+Google Protobuf Decode & $87.80$ [$87.78$, $88.07$] & $11.4\,\text{MOps/s}$ & $510.5\,\text{MiB/s}$ & $1.00\times$ \\ \hline
 \end{tabular}
 \end{table}
 
@@ -89,14 +97,17 @@ Full \texttt{libprotobuf} carries descriptor pools, reflection registries and ar
 \begin{tabular}{|l|c|c|c|c|}
 \hline
 \textbf{Framework / Operation} & \textbf{Latency (ns)} & \textbf{Throughput} & \textbf{Data Rate} & \textbf{Speedup} \\ \hline
-\textbf{\texttt{ctpb} Encode} & $\mathbf{32.7{\pm}2.1}$ & $\mathbf{30.61\,\text{MOps/s}}$ & $\mathbf{1{,}371.9\,\text{MiB/s}}$ & $\mathbf{3.06\times}$ \\ \hline
-\texttt{libprotobuf-lite} Encode & $99.9{\pm}12.4$ & $10.01\,\text{MOps/s}$ & $448.6\,\text{MiB/s}$ & $1.00\times$ \\ \hline\hline
-\textbf{\texttt{ctpb} Decode} & $\mathbf{132.6{\pm}5.5}$ & $\mathbf{7.54\,\text{MOps/s}}$ & $\mathbf{337.9\,\text{MiB/s}}$ & $\mathbf{1.69\times}$ \\ \hline
-\texttt{libprotobuf-lite} Decode & $223.7{\pm}10.0$ & $4.47\,\text{MOps/s}$ & $200.4\,\text{MiB/s}$ & $1.00\times$ \\ \hline
+\textbf{\texttt{ctpb} Encode} & $\mathbf{8.27}$ [$8.24$, $8.51$] & $\mathbf{120.9\,\text{MOps/s}}$ & $\mathbf{5{,}419.9\,\text{MiB/s}}$ & $\mathbf{5.572\times}$ \\ \hline
+\texttt{libprotobuf-lite} Encode & $46.11$ [$45.97$, $46.87$] & $21.7\,\text{MOps/s}$ & $972.1\,\text{MiB/s}$ & $1.00\times$ \\ \hline\hline
+\textbf{\texttt{ctpb} Decode} & $\mathbf{76.52}$ [$76.08$, $77.73$] & $\mathbf{13.1\,\text{MOps/s}}$ & $\mathbf{585.8\,\text{MiB/s}}$ & $\mathbf{1.043\times}$ \\ \hline
+\texttt{libprotobuf-lite} Decode & $79.83$ [$79.56$, $81.04$] & $12.5\,\text{MOps/s}$ & $561.5\,\text{MiB/s}$ & $1.00\times$ \\ \hline
 \end{tabular}
 \end{table}
 
-The margin against the fairer baseline does not shrink: encode is slightly wider ($3.06\times$ vs.\ $2.81\times$) and decode is within $0.02\times$ of the full-library margin. The speedup therefore does not come from comparing against a heavier reference implementation.
+Against the fairer baseline the encode margin is the wider of the two, $5.572\times$ against $5.334\times$, so it does not depend on the descriptor pools, reflection registries and arenas that only the full build carries. Decoding is a much narrower result and carries a condition. Correcting a per-iteration allocation in the benchmark moves \texttt{ctpb}'s decode from $0.98\times$ to $1.04\times$ against \texttt{libprotobuf-lite}; \texttt{ctpb}'s decoder omits the UTF-8 validation the reference implementation performs, so the remaining margin is not a like-for-like comparison. proto3 requires \texttt{string} fields to be validated as UTF-8, the lite runtime spends about seven per cent of its decode path doing it, and \texttt{ctpb} does not do it at all. The decode figure should be read as a rough parity that still has a correctness asymmetry inside it, pointing the other way. The encode and footprint results carry no such caveat.
+% src: README.md "the sentence that has to travel with it"; the 7.37 % inclusive cost of
+%   IsStructurallyValidUTF8 / VerifyUtf8String / VerifyUTF8 in libprotobuf-lite, and no utf8
+%   anywhere in ctpb's headers
 
 \begin{figure}[ht]
 \centering
@@ -107,7 +118,7 @@ The margin against the fairer baseline does not shrink: encode is slightly wider
     width=0.48\textwidth,
     height=5.2cm,
     ymin=0,
-    ymax=1600,
+    ymax=6000,
     ylabel={Throughput (MB / sec)},
     symbolic x coords={Encode, Decode},
     xtick=data,
@@ -122,12 +133,12 @@ The margin against the fairer baseline does not shrink: encode is slightly wider
     enlarge x limits=0.4
 ]
 \addplot[fill=teal!65, draw=teal!90] coordinates {
-    (Encode, 1396.0)
-    (Decode, 350.2)
+    (Encode, 5236.3)
+    (Decode, 587.2)
 };
 \addplot[fill=gray!50, draw=gray!80] coordinates {
-    (Encode, 496.4)
-    (Decode, 205.0)
+    (Encode, 982.1)
+    (Decode, 510.5)
 };
 \legend{\texttt{ctpb}, Google Protobuf}
 \end{axis}
@@ -136,7 +147,7 @@ The margin against the fairer baseline does not shrink: encode is slightly wider
 \label{fig:runtime_throughput}
 \end{figure}
 
-As shown in Table~\ref{tab:runtime_comparison} and Figure~\ref{fig:runtime_throughput}, \texttt{ctpb} outperforms Google \texttt{libprotobuf} across both serialization and deserialization. On encoding, \texttt{ctpb} achieves a $\mathbf{2.81\times}$ throughput speedup ($32.11\,\text{ns}$ vs $90.29\,\text{ns}$ latency, $1{,}396.0\,\text{MiB/s}$), which comes from compile-time field-size evaluation, exact single-buffer pre-allocation (\texttt{byte\_size()}), and direct raw-pointer serialization without intermediate reallocations or virtual dispatch. On decoding, it achieves a $\mathbf{1.71\times}$ throughput speedup ($127.99\,\text{ns}$ vs $218.60\,\text{ns}$ latency, $350.2\,\text{MiB/s}$). Zero virtual table lookups, inlined unrolled wire field loops, and direct member memory assignment eliminate the arena and reflection overhead present in reference implementations.
+As shown in Table~\ref{tab:runtime_comparison} and Figure~\ref{fig:runtime_throughput}, the two operations behave differently and the difference is the result. On encoding \texttt{ctpb} achieves a $\mathbf{5.334\times}$ speedup against the full library ($8.56\,\text{ns}$ against $45.64\,\text{ns}$, $5{,}236.3\,\text{MiB/s}$), which comes from compile-time field-size evaluation, exact single-buffer pre-allocation (\texttt{byte\_size()}), and direct raw-pointer serialization without intermediate reallocations or virtual dispatch. On decoding it reaches $\mathbf{1.150\times}$ ($76.33\,\text{ns}$ against $87.80\,\text{ns}$, $587.2\,\text{MiB/s}$), which is parity rather than a margin once the UTF-8 asymmetry described below is taken into account. Zero virtual table lookups, inlined unrolled wire field loops and direct member assignment remove the arena and reflection overhead of the reference implementation, and on the decode path that removal buys much less than the encode path suggests.
 
 \subsection{Binary Footprint and Static Overhead Analysis}
 \begin{table}[ht]
@@ -150,17 +161,20 @@ As shown in Table~\ref{tab:runtime_comparison} and Figure~\ref{fig:runtime_throu
 \hline
 \textbf{Metric} & \textbf{\texttt{ctpb} (P2996)} & \textbf{\texttt{protoc} (Dyn)} & \textbf{\texttt{protoc} (Static)} \\ \hline
 Generated Source Lines & \textbf{0} & 754 & 754 \\ \hline
-Object Files (\texttt{.o}) & \textbf{21.9 KB} & 31.3 KB & 31.3 KB \\ \hline
-Stripped Executable & \textbf{18.3 KB} & 26.9 KB & 1,718.1 KB \\ \hline
-Text Section (\texttt{.text}) & \textbf{9.8 KB} & 16.0 KB & 1,691.4 KB \\ \hline
-Data Section (\texttt{.data}) & \textbf{0.7 KB} & 1.4 KB & 19.2 KB \\ \hline
+Stripped Executable & \textbf{18{,}776\,B} & 27{,}504\,B & 1{,}759{,}368\,B \\ \hline
+Text Section (\texttt{.text}) & \textbf{10{,}047\,B} & 16{,}373\,B & 1{,}731{,}945\,B \\ \hline
+Data Section (\texttt{.data}) & \textbf{720\,B} & 1{,}384\,B & 19{,}672\,B \\ \hline
 External Shared Libraries & \textbf{0} & \texttt{libprotobuf.so} & \textbf{0} \\ \hline
 \end{tabular}
 \end{table}
 
 We evaluated the binary size and intermediate artifacts of a standalone application performing serialization and deserialization between \texttt{ctpb} and Google's \texttt{protoc} (Table~\ref{tab:binary_footprint}). For a single 3-field message, \texttt{protoc} emits 754 lines of C++ code (\texttt{.pb.h} and \texttt{.pb.cc}), whereas \texttt{ctpb} generates zero files, so there is no build artifact caching and no disk I/O.
 
-In fully static deployments, \texttt{ctpb}'s stripped executable is only $18.3\,\text{KB}$ compared to $1.72\,\text{MB}$ for \texttt{protoc}---a $\mathbf{93.7\times}$ reduction in binary footprint. Google's \texttt{libprotobuf} statically bundles descriptor pools, reflection registries, mutex tables, and arena allocators, whereas \texttt{ctpb} compiles down solely to exact inlined field loops. The dynamic executable produced by \texttt{ctpb} links exclusively against standard system libraries (\texttt{libc}, \texttt{libstdc++}); it carries no dependency on \texttt{libprotobuf.so}.
+In fully static deployments \texttt{ctpb}'s stripped executable is $18{,}776$ bytes against $1{,}759{,}368$ for \texttt{protoc}, a $\mathbf{93.70\times}$ reduction, because \texttt{libprotobuf} statically bundles descriptor pools, reflection registries, mutex tables and arena allocators while \texttt{ctpb} compiles to exact inlined field loops. Against the dynamic build the reduction is $1.46\times$, and the dynamic \texttt{ctpb} build links only \texttt{libc}, \texttt{libm}, \texttt{libstdc++} and \texttt{libgcc\_s}. These are byte counts rather than rounded kilobytes, which is what makes the ratio checkable: the figure this work has claimed all along is right, and it could not previously be recovered from what was published with it.
+% src: raw/binary_size.txt sections 4 (exact bytes), 5 (size(1) on the stripped executables:
+%   text 10047 / 16373 / 1731945, data 720 / 1384 / 19672) and 6 (ldd). The object-file row is
+%   dropped rather than restated: the record holds object sizes only as ls -lh rounding, which
+%   is where the earlier 21.9 and 31.3 KB tenths came from. 1759368/18776 = 93.6996.
 
 \subsection{Reference Interoperability and gRPC Transport Parity}
 To establish protocol correctness, we performed dual-direction interoperability tests against Google's official \texttt{libprotobuf} reference implementation (3.21.12) and the \texttt{protoc} code generator \cite{protobuf_spec}. These tests cover scalar fields, strings, nested messages and enums, and, following a wire-format review that found the initial implementation mis-encoded them, \texttt{bytes} fields and packed repeated scalar fields as well.
