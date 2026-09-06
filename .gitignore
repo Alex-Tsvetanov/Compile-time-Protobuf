@@ -17,12 +17,6 @@ ctpb.tag
 *.aux
 *.log
 
-# Measurement logs are records, not build noise. The bare *.log above is a LaTeX
-# rule and it silently ate 211 logs in paper-io-portability and a cited build.log in
-# paper-quic-cid-routing -- ignored files never show in git status, so the loss was
-# invisible for days. This negation is scoped to measurements/ and cannot affect any
-# LaTeX build directory.
-!measurements/**/*.log
 *.toc
 *.bbl
 *.blg
@@ -45,3 +39,12 @@ ctpb.tag
 *.pb.cc
 paper/docx_preview.pdf
 paper/tpl_unpack/
+
+# Everything under measurements/ is a record, whatever its extension. The rules above are
+# LaTeX and build noise; they have now eaten measurement files three times -- 211 .log in
+# paper-io-portability, a cited build.log in paper-quic-cid-routing, and four .out files
+# that a published checksum manifest listed but the tree did not contain. The first fix
+# whitelisted .log alone and the next campaign wrote .out. The problem was never the
+# extension: a record can carry any file type. Scope the exemption to the path instead.
+# Verified: no build writes into measurements/ in this repository.
+!measurements/**
