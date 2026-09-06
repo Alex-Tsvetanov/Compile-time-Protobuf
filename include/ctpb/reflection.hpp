@@ -406,7 +406,8 @@ inline bool read_packed_elem(wire::reader& r, const field_info& info, auto& out)
 }
 
 template <typename T>
-inline bool decode_field_by_info(wire::reader& r, wire::wire_type wt, const field_info& info, T& value) {
+inline bool decode_field_by_info(wire::reader& r, wire::wire_type wt, const field_info& info, T& value,
+                                 wire::decode_error::kind* why = nullptr) {
     if constexpr (IsByteBlob<T>) {
         if (wt == wire::wire_type::len) {
             std::span<const std::byte> b;
@@ -418,6 +419,24 @@ inline bool decode_field_by_info(wire::reader& r, wire::wire_type wt, const fiel
         if (wt == wire::wire_type::len) {
             std::string_view sv;
             if (!r.read_string(sv)) return false;
+            // proto3 requires a `string` field to carry structurally valid UTF-8 and a
+            // message that breaks it to be rejected on parse.
+            //
+            // Gated on the PROTO type, not on the C++ type, and that distinction is
+            // load-bearing rather than pedantic. Under P2996 a `bytes` field is generated
+            // as std::vector<std::byte> and takes the IsByteBlob branch above, so the C++
+            // type would have been enough. In the C++20 fallback the user declares the
+            // member themselves and a `bytes` field is ordinarily a std::string, which is
+            // indistinguishable here from a `string` field by type alone -- so validating
+            // on IsString would reject perfectly valid `bytes` payloads on that path only.
+            // A test caught this; the comment that preceded it did not.
+            //
+            // `bytes` is an arbitrary octet sequence with no encoding obligation. It is
+            // exempt deliberately, not by omission.
+            if (info.type == "string" && !wire::valid_utf8(sv)) {
+                if (why) *why = wire::decode_error::invalid_utf8;
+                return false;
+            }
             value = std::string(sv);
             return true;
         }
@@ -473,6 +492,12 @@ inline bool decode_field_by_info(wire::reader& r, wire::wire_type wt, const fiel
             if (wt == wire::wire_type::len) {
                 std::string_view sv;
                 if (!r.read_string(sv)) return false;
+                // Same obligation, and the same proto-type gate: see the singular case
+                // above for why the C++ type is not sufficient to make this decision.
+                if (info.type == "string" && !wire::valid_utf8(sv)) {
+                    if (why) *why = wire::decode_error::invalid_utf8;
+                    return false;
+                }
                 value.push_back(std::string(sv));
                 return true;
             }
@@ -654,8 +679,9 @@ struct reflect_base {
                     if constexpr (Is < schema_field_count) {
                         constexpr auto field = Schema::get_field(Is);
                         if (num == field.number) {
-                            if (!detail::decode_field_by_info(r, wt, field, std::get<Is>(members))) {
-                                err.err = wire::decode_error::truncated;
+                            auto why = wire::decode_error::truncated;
+                            if (!detail::decode_field_by_info(r, wt, field, std::get<Is>(members), &why)) {
+                                err.err = why;
                             }
                             matched = true;
                         }
@@ -771,8 +797,9 @@ public:
                 ([&]() {
                     constexpr auto info = schema_type::get_field(Is);
                     if (num == info.number) {
-                        if (!detail::decode_field_by_info(r, wt, info, std::get<Is>(fields_))) {
-                            err.err = wire::decode_error::truncated;
+                        auto why = wire::decode_error::truncated;
+                        if (!detail::decode_field_by_info(r, wt, info, std::get<Is>(fields_), &why)) {
+                            err.err = why;
                         }
                         matched = true;
                     }
@@ -887,8 +914,9 @@ inline bool decode_ith_field(T& msg, std::int64_t num, wire::wire_type wt, wire:
     constexpr auto f_info = Schema::get_field(I);
     constexpr auto m_info = get_member_i<T, I>();
     if (num == f_info.number) {
-        if (!detail::decode_field_by_info(r, wt, f_info, msg.[:m_info:])) {
-            err.err = wire::decode_error::truncated;
+        auto why = wire::decode_error::truncated;
+        if (!detail::decode_field_by_info(r, wt, f_info, msg.[:m_info:], &why)) {
+            err.err = why;
         }
         return true;
     }

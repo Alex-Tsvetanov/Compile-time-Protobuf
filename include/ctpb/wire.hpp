@@ -5,6 +5,7 @@
 #include <cstring>
 #include <span>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 namespace ctpb::wire {
@@ -25,11 +26,85 @@ struct decode_error {
         bad_varint,
         bad_wire_type,
         field_mismatch,
+        // proto3 requires a `string` field to carry structurally valid UTF-8, and a
+        // message whose string field does not must be rejected on parse. Distinct from
+        // truncated, which is what every field failure used to be reported as: a
+        // diagnostic that names the wrong cause is worse than one that names none.
+        invalid_utf8,
         unknown_error
     } err = ok;
 
     constexpr explicit operator bool() const noexcept { return err != ok; }
 };
+
+// Structural UTF-8 validation, as proto3 mandates for `string` fields.
+//
+// Bjoern Hoehrmann's table-driven DFA, with a word-at-a-time ASCII pre-pass. The pre-pass
+// is the implementation and not an optimisation on top of one: measured on the two string
+// fields of the benchmark payload it is 3.894 ns per message against the plain DFA's
+// 39.956, a factor of ten, and that factor is the whole difference between this library
+// tying libprotobuf-lite on decode and losing to it by half again.
+// See measurements/2026-09-07-laptop-utf8-costing.
+//
+// The word load is skipped during constant evaluation, where memcpy on a byte pointer is
+// not available -- the DFA alone is constexpr-clean, so a `string` field can still be
+// decoded at compile time, just without the pre-pass that only matters at runtime.
+//
+// NOT applied to `bytes`. That is deliberate and not an oversight: proto3 defines `bytes`
+// as an arbitrary octet sequence with no encoding obligation, and validating it would
+// reject valid messages. `bytes` fields decode through read_length_delimited, which does
+// not call this.
+inline constexpr std::uint8_t utf8_dfa[] = {
+    // Bytes to character classes.
+     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+     1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,  9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,
+     7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,  7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
+     8,8,2,2,2,2,2,2,2,2,2,2,2,2,2,2,  2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
+    10,3,3,3,3,3,3,3,3,3,3,3,3,4,3,3, 11,6,6,6,5,8,8,8,8,8,8,8,8,8,8,8,
+    // State and class to state. States are multiples of 12; 0 accepts, 12 rejects.
+     0,12,24,36,60,96,84,12,12,12,48,72, 12,12,12,12,12,12,12,12,12,12,12,12,
+    12, 0,12,12,12,12,12, 0,12, 0,12,12, 12,24,12,12,12,12,12,24,12,24,12,12,
+    12,12,12,12,12,12,12,24,12,12,12,12, 12,24,12,12,12,12,12,12,12,24,12,12,
+    12,12,12,12,12,12,12,36,12,36,12,12, 12,36,12,12,12,12,12,36,12,36,12,12,
+    12,36,12,12,12,12,12,12,12,12,12,12,
+};
+
+constexpr bool valid_utf8_dfa(std::string_view s) noexcept {
+    std::uint32_t state = 0;
+    for (char ch : s) {
+        const auto type = utf8_dfa[static_cast<unsigned char>(ch)];
+        // The state is already a multiple of 12, so it indexes the transition half
+        // directly rather than being scaled here.
+        state = utf8_dfa[256u + state + type];
+        if (state == 12u) return false;  // 12 rejects
+    }
+    return state == 0u;                  // a truncated sequence ends mid-state
+}
+
+constexpr bool valid_utf8(std::string_view s) noexcept {
+    if (!std::is_constant_evaluated()) {
+        // Any byte above 0x7F sends the whole string to the DFA. Pure ASCII, which is the
+        // common case for these fields, never reaches it.
+        const char* p = s.data();
+        std::size_t n = s.size();
+        while (n >= 8) {
+            std::uint64_t word = 0;
+            __builtin_memcpy(&word, p, 8);
+            if (word & 0x8080808080808080ull) return valid_utf8_dfa(s);
+            p += 8;
+            n -= 8;
+        }
+        for (std::size_t i = 0; i < n; ++i) {
+            if (static_cast<unsigned char>(p[i]) & 0x80u) return valid_utf8_dfa(s);
+        }
+        return true;
+    }
+    return valid_utf8_dfa(s);
+}
+
 
 // ---------------------------------------------------------------------------
 // Size Calculation Helpers (Zero-Allocation Pre-sizing)
