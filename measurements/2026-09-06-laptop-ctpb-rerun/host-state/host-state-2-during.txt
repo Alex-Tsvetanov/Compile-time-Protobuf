@@ -1,0 +1,22 @@
+# host CPU state, point 2 of 3: DURING the campaign (pinned)
+
+  timestamp:  2026-09-06T12:49:12+03:00
+  governor:   performance 
+  epp:        performance
+  min_freq:   3200000 
+  max_freq:   3200000 
+  boost:      0
+  AC online:  1
+  loadavg:    1.53 1.13 0.52 1/1048 7296
+
+achieved clock verified under a 16-thread spin before the campaign started:
+  3019 x10, 3004 x6 MHz -- uniform to 0.5% across cores, but ~5.7% BELOW the
+  3200 MHz requested. With boost disabled the package does not sustain 3.2 GHz
+  on all 16 threads. The pin delivers stability, which is its purpose here;
+  it does not deliver the nominal 3.2 GHz and this record does not claim it.
+
+image under test:
+  repo digest: sleepingeight/clang-cpp-refl@sha256:22cbbd30b8bdec714ba5d06e60c9ff43a30e7cb27b8bd4b9f29a249d6597c426
+  image id:    sha256:22cbbd30b8bdec714ba5d06e60c9ff43a30e7cb27b8bd4b9f29a249d6597c426
+  created:     2026-03-14T19:52:02.501430167+05:30
+  platform:    linux/amd64 (host is native x86_64, so no emulation)

@@ -1,0 +1,64 @@
+target dir absent, ok
+90641ed benchmarks: one script to re-take every figure with the corrected harness
+--- launching ---
+writing to <repo>/benchmarks/results-2026-09-06
+# Environment for the re-run of 2026-09-06
+
+## Host
+uname:        Linux 7.2.3-arch1-2 x86_64 GNU/Linux
+cpu model:    AMD Ryzen 7 5800H with Radeon Graphics
+cpu cores:    16
+governor:     performance
+load at start:1.31 1.10 0.52
+virtualised:  none
+no systemd-detect-virt
+
+## Toolchain, on the host
+docker:       Docker version 29.7.2, build a7dcaa6fdb
+git commit:   90641ed940d5bb769d6790424f8b1bdede668960
+git dirty:    yes
+
+## Toolchain, inside the image
+clang:        clang version 21.0.0git (https://github.com/bloomberg/clang-p2996.git 2ea0a79fe7bb5f6fdb8c687ba0e21ab63696e7f7)
+protobuf:     absent
+libprotobuf:  unknown
+image arch:   x86_64
+
+=== runtime_comparison ===
+FAILED, see <repo>/benchmarks/results-2026-09-06/runtime_comparison.txt
+benchmarks/eval_runtime_comparison.sh: line 21: protoc: command not found
+
+=== runtime_comparison_lite ===
+FAILED, see <repo>/benchmarks/results-2026-09-06/runtime_comparison_lite.txt
+benchmarks/eval_runtime_comparison_lite.sh: line 46: protoc: command not found
+
+=== binary_size ===
+FAILED, see <repo>/benchmarks/results-2026-09-06/binary_size.txt
+clang++: error: no such file or directory: '/workspace/examples/person.cpp'
+clang++: error: no input files
+
+=== compile_time_latency ===
+FAILED, see <repo>/benchmarks/results-2026-09-06/compile_time_latency.txt
+/tmp/eval_compile_time/bench.cpp:4:10: fatal error: 'ctpb/ctpb.hpp' file not found
+    4 | #include <ctpb/ctpb.hpp>
+      |          ^~~~~~~~~~~~~~~
+1 error generated.
+
+=== constexpr_step_limit ===
+ok -> <repo>/benchmarks/results-2026-09-06/constexpr_step_limit.txt
+=== 3. is the default limit what Clang documents (1048576)? ===
+  explicit default also fails (consistent with default==1048576)
+
+=== 4. does the project set any constexpr flag of its own? ===
+  none anywhere in the build
+
+done. Raw output is in <repo>/benchmarks/results-2026-09-06
+
+Next, and none of it is automatic:
+  1. Diff each figure against benchmarks/results/ and write down what moved.
+  2. If 2.81x or 1.71x did not survive, the abstract, benchmark section and both
+     conclusions change. That is the expected outcome, not a failure of the run.
+  3. Declare the host change: the committed numbers are from a different machine.
+  4. Commit <repo>/benchmarks/results-2026-09-06 in full, raw output included, before editing any prose.
+
+[exited with code 0]

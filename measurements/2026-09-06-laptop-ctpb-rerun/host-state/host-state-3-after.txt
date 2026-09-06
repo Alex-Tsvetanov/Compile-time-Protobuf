@@ -1,0 +1,7 @@
+# host CPU state, point 3a of 3: campaign finished, STILL PINNED (before restore)
+  timestamp:  2026-09-06T12:49:56+03:00
+  governor:   performance 
+  min_freq:   3200000 
+  max_freq:   3200000 
+  boost:      0
+  AC online:  1

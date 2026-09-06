@@ -1,0 +1,17 @@
+# host CPU state, point 1 of 3: BEFORE the pin
+
+boot state, observed 2026-09-06 12:40 EEST at 1 minute uptime, before this session
+touched anything: governor = powersave on all 16 CPUs.
+
+current state, after this session re-applied Alex's 'cpupower frequency-set -g
+performance' which the 12:39 reboot had discarded:
+  timestamp:  2026-09-06T12:46:16+03:00
+  boot time:  2026-09-06 12:39:08
+  governor:   performance 
+  epp:        performance
+  driver:     amd-pstate-epp
+  min_freq:   1102866
+  max_freq:   4465261
+  boost:      1
+  AC online:  1
+  battery:    100%
