@@ -45,3 +45,11 @@ ctpb.tag
 *.pb.cc
 paper/docx_preview.pdf
 paper/tpl_unpack/
+
+# Everything under measurements/ is a record, whatever its extension. This negation
+# MUST be the last rule in this file: gitignore applies the last match, so a bare
+# extension rule below it (e.g. *.out) silently re-ignores records. Measured, not
+# assumed: with the narrow form above and *.out later, a .out under measurements/ was
+# dropped and four raw outputs of the P5 decode experiments were lost that way.
+# Verified: no build writes into measurements/ in this repository.
+!measurements/**
