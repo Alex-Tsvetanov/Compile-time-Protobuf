@@ -77,7 +77,7 @@ Google Protobuf Decode & $218.6{\pm}8.4$ & $4.58\,\text{MOps/s}$ & $205.0\,\text
 \end{tabular}
 \end{table}
 
-Full \texttt{libprotobuf} carries descriptor pools, reflection registries and arena allocators that \texttt{ctpb} does not implement, so part of the margin above measures the absence of those features rather than the compile-time approach on its own. \texttt{libprotobuf-lite} (\texttt{optimize\_for = LITE\_RUNTIME}) strips them and is the baseline the Related Work section identifies as fair, so the comparison was repeated against it, same machine, same script, same iteration count (Table~\ref{tab:lite_comparison}).
+Full \texttt{libprotobuf} carries descriptor pools, reflection registries and arena allocators that \texttt{ctpb} does not implement, so part of the margin above measures the absence of those features rather than the compile-time approach on its own. \texttt{libprotobuf-lite} (\texttt{optimize\_for = LITE\_RUNTIME}) strips all three, which is what makes it the closer comparator for the approach rather than for the feature set, so the comparison was repeated against it, same machine, same script, same iteration count (Table~\ref{tab:lite_comparison}).
 
 \begin{table}[ht]
 \centering
