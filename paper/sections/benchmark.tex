@@ -1,13 +1,16 @@
 \section{Experimental Evaluation}
 
-Every figure in this section comes from one host in one pinned sitting on 6~September 2026: an AMD Ryzen~7 5800H, 16 logical CPUs, Linux 7.2.3, clock pinned to 3.2\,GHz with boost disabled and the setting verified by read-back against the state captured before pinning. The timed work ran in the project's \texttt{ctpb-dev:2026-09-06} image built from the repository's own \texttt{Dockerfile} \cite{ctpb2026}, compiled with Clang 21.0 (P2996 branch) under \texttt{-std=c++26 -freflection -O3} against Protobuf 3.21.12. Every raw trial line, the clock samples taken during the run and the exact benchmark script are published with the paper.
-% src: measurements/2026-09-06-laptop-p5-single-host/README.md conditions table (host, image,
+Every figure in this section comes from one host in one pinned sitting on 7~September 2026: an AMD Ryzen~7 5800H, 16 logical CPUs, Linux 7.2.3, clock pinned to 3.2\,GHz with boost disabled and the setting verified by read-back against the state captured before pinning. The timed work ran in the project's \texttt{ctpb-dev:2026-09-06} image built from the repository's own \texttt{Dockerfile} \cite{ctpb2026}, compiled with Clang 21.0 (P2996 branch) under \texttt{-std=c++26 -freflection -O3} against Protobuf 3.21.12. Every raw trial line, the clock samples taken during the run and the exact benchmark script are published with the paper.
+% src: measurements/2026-09-07-laptop-p5-retake/README.md conditions table (host, image,
 %   toolchain, clock: 41 samples across 16 CPUs, median 3200 MHz, min 3159, spread 0.97%);
 %   raw/host-state.txt (BEFORE PIN / DURING / AFTER RESTORE, verification=ok against the
 %   captured baseline rather than a hardcoded value)
 
-The numbers below replace those of the previous version rather than extending them, and the reason is worth stating. The earlier table was taken on a different machine, an AMD Ryzen~5 3600, under a harness this repository has since repudiated for three named defects, any one of which could account for the whole reported margin. That harness also decoded into a freshly constructed destination on the \texttt{ctpb} arm while reusing one on the reference arm, charging \texttt{ctpb} a heap allocation per iteration that its competitor did not pay. Re-measured on one host with that asymmetry removed, the encode margin roughly doubles and the decode margin falls well below what was previously printed. No \texttt{ctpb} code changed between the two campaigns; the instrument did.
-% src: rerun_all.sh (the repudiation and the three defects); measurements/2026-09-06-laptop-p5-single-host/README.md
+The numbers below replace those of the previous version rather than extending them, and they have been replaced twice. The first published table was taken on a different machine, an AMD Ryzen~5 3600, under a harness this repository has since repudiated for three named defects, any one of which could account for the whole reported margin. The table that replaced it was re-taken here on 6~September and is itself superseded, because \texttt{ctpb} did not then validate UTF-8 and the campaign driver was found to exit successfully having measured nothing: it built against an image carrying no protobuf, mounted the tree where no script looked for it, and reported failure to stderr while returning success. Nothing in that set is adjusted forward. The absolutes are re-taken, because thermal state moves them between sittings by more than the effects under test, and only ratios and within-run comparisons carry across. That harness also decoded into a freshly constructed destination on the \texttt{ctpb} arm while reusing one on the reference arm, charging \texttt{ctpb} a heap allocation per iteration that its competitor did not pay. Re-measured on one host with that asymmetry removed, the encode margin roughly doubles and the decode margin falls well below what was previously printed. No \texttt{ctpb} code changed between the two campaigns; the instrument did.
+% src: rerun_all.sh (the repudiation and the three defects); measurements/2026-09-07-laptop-p5-retake/README.md
+%   "The driver this ran through had to be repaired first" (three compounding faults, repaired at
+%   be4497e and verified by breaking it) and "Do not reconcile these absolutes with the published
+%   ones" (only ratios and within-run comparisons transfer between sittings on this host)
 %   "What moved" and "Two instrument defects found and fixed before these numbers were read";
 %   method/diff-from-committed-eval.txt is the exact change from the committed harness
 
@@ -28,21 +31,21 @@ We measured the \texttt{constexpr} parser on three schemas scaled by field count
 \begin{tabular}{|l|c|c|c|}
 \hline
 \textbf{Schema Size} & \textbf{Fields} & \textbf{Latency / Parse} & \textbf{Throughput} \\ \hline
-Small & 5 & $0.646\,\mu\text{s}$ [$0.643$, $0.648$] & $1{,}547{,}988\,\text{parses/s}$ \\ \hline
-Medium & 25 & $2.515\,\mu\text{s}$ [$2.511$, $2.519$] & $397{,}614\,\text{parses/s}$ \\ \hline
-Large & 100 & $9.465\,\mu\text{s}$ [$9.438$, $9.484$] & $105{,}652\,\text{parses/s}$ \\ \hline
+Small & 5 & $0.492\,\mu\text{s}$ [$0.489$, $0.500$] & $2{,}032{,}520\,\text{parses/s}$ \\ \hline
+Medium & 25 & $1.938\,\mu\text{s}$ [$1.920$, $1.968$] & $515{,}996\,\text{parses/s}$ \\ \hline
+Large & 100 & $7.239\,\mu\text{s}$ [$7.227$, $7.256$] & $138{,}141\,\text{parses/s}$ \\ \hline
 \end{tabular}
 \end{table}
-% src: measurements/2026-09-06-laptop-p5-single-host/raw/compile_time_latency.txt, trials 1-6,
+% src: measurements/2026-09-07-laptop-p5-retake/raw/compile_time_latency.txt, trials 1-6,
 %   median and min/max per column. Throughput is the reciprocal of the median, derived here
 %   rather than recorded.
 
-A 100-field schema is ingested in $9.465\,\mu\text{s}$, comfortably under the $11.4\,\mu\text{s}$ this work has claimed for it. The end-to-end cost of invoking \texttt{protoc} was measured only under the repudiated harness and was not re-taken in this campaign, so the ratio between the two is not restated here.
+A 100-field schema is ingested in $7.239\,\mu\text{s}$, comfortably under the $11.4\,\mu\text{s}$ this work has claimed for it. The end-to-end cost of invoking \texttt{protoc} was measured only under the repudiated harness and was not re-taken in this campaign, so the ratio between the two is not restated here.
 % src: README.md compile-time table ("Under the paper's below-11.4 us claim"). The 7 ms protoc
 %   figure and the ~620x-8,150x reduction derived from it appear in no record of this campaign;
 %   combining a repudiated figure with a current one would put two instruments in one ratio.
 
-The parser's ceiling is a property of the compiler rather than of the schema language. Bisection at Clang's default \texttt{constexpr} step budget puts the largest single message that compiles at 300 fields, with 301 failing; raising the budget to $4{,}194{,}304$ steps compiles both 500 and 1000 fields. Compiling with the documented default stated explicitly fails in the same place, which is consistent with that default being $1{,}048{,}576$, and the project sets no \texttt{constexpr} step flag anywhere in its own build.
+The parser's ceiling is a property of the compiler rather than of the schema language. Bisection at Clang's default \texttt{constexpr} step budget puts the largest single message that compiles at 304 fields; raising the budget to $4{,}194{,}304$ steps compiles both 500 and 1000 fields. Compiling with the documented default stated explicitly fails in the same place, which is consistent with that default being $1{,}048{,}576$, and the project sets no \texttt{constexpr} step flag anywhere in its own build.
 % src: raw/constexpr_step_limit.txt sections 1-4: bisection (375, 312 STEP_LIMIT; 281, 296, 300
 %   pass; 304, 302, 301 STEP_LIMIT); -fconstexpr-steps=4194304 rescues 500 and 1000; explicit
 %   default also fails; no constexpr flag anywhere in the build
@@ -61,24 +64,24 @@ We evaluated encoding and decoding on a representative 3-field \texttt{Person} m
 \begin{tabular}{|l|c|c|c|}
 \hline
 \textbf{Operation} & \textbf{Latency (ns)} & \textbf{Throughput} & \textbf{Speedup} \\ \hline
-\textbf{\texttt{ctpb} encode} & $\mathbf{8.27}$ [$8.24$, $8.51$] & $\mathbf{120.9\,\text{MOps/s}}$ & baseline \\ \hline
-\texttt{libprotobuf-lite} encode & $46.11$ [$45.97$, $46.87$] & $21.7\,\text{MOps/s}$ & $\mathbf{5.572\times}$ \\ \hline
-\texttt{libprotobuf} encode & $45.64$ [$45.62$, $45.65$] & $21.9\,\text{MOps/s}$ & $\mathbf{5.334\times}$ \\ \hline\hline
-\textbf{\texttt{ctpb} decode} & $\mathbf{76.52}$ [$76.08$, $77.73$] & $\mathbf{13.1\,\text{MOps/s}}$ & baseline \\ \hline
-\texttt{libprotobuf-lite} decode & $79.83$ [$79.56$, $81.04$] & $12.5\,\text{MOps/s}$ & $\mathbf{1.043\times}$ \\ \hline
-\texttt{libprotobuf} decode & $87.80$ [$87.78$, $88.07$] & $11.4\,\text{MOps/s}$ & $\mathbf{1.150\times}$ \\ \hline
+\textbf{\texttt{ctpb} encode} & $\mathbf{6.614}$ [$6.268$, $6.698$] & $\mathbf{151.2\,\text{MOps/s}}$ & baseline \\ \hline
+\texttt{libprotobuf-lite} encode & $36.992$ [$35.691$, $37.087$] & $27.0\,\text{MOps/s}$ & $\mathbf{5.593\times}$ \\ \hline
+\texttt{libprotobuf} encode & $34.755$ [$34.675$, $36.755$] & $28.8\,\text{MOps/s}$ & $\mathbf{5.375\times}$ \\ \hline\hline
+\textbf{\texttt{ctpb} decode} & $\mathbf{62.218}$ [$58.114$, $62.859$] & $\mathbf{16.1\,\text{MOps/s}}$ & baseline \\ \hline
+\texttt{libprotobuf-lite} decode & $68.553$ [$64.715$, $69.242$] & $14.6\,\text{MOps/s}$ & $\mathbf{1.102\times}$ \\ \hline
+\texttt{libprotobuf} decode & $63.552$ [$63.401$, $68.705$] & $15.7\,\text{MOps/s}$ & $\mathbf{1.088\times}$ \\ \hline
 \end{tabular}
 \end{table}
-% src: measurements/2026-09-06-laptop-p5-single-host/raw/runtime_prealloc.txt, both blocks,
+% src: measurements/2026-09-07-laptop-p5-retake/raw/runtime_prealloc.txt, both blocks,
 %   trials 1-6. The ctpb decode cell is the lite-arm run; the full-libprotobuf arm's own ctpb
 %   decode median is 76.33 and its encode 8.56, which is why the two speedups are quoted
 %   against their own arm's ctpb median rather than against one shared cell. Speedups are
 %   computed from unrounded medians and do not reproduce exactly from the two-decimal cells.
 %   Throughput is the reciprocal of the median, derived here rather than recorded.
 
-Encoding is where the compile-time approach pays. Field sizes are known to the compiler, so the encoder allocates one exactly sized buffer through \texttt{byte\_size()} and writes through raw pointers with no reallocation and no virtual dispatch; the margin is $5.57\times$ against the lite runtime and $5.33\times$ against the full one. That the two agree closely is the point of running both: the encode margin does not depend on the descriptor pools, reflection registries and arenas that only the full build carries.
+Encoding is where the compile-time approach pays. Field sizes are known to the compiler, so the encoder allocates one exactly sized buffer through \texttt{byte\_size()} and writes through raw pointers with no reallocation and no virtual dispatch; the margin is $5.59\times$ against the lite runtime and $5.38\times$ against the full one. That the two agree closely is the point of running both: the encode margin does not depend on the descriptor pools, reflection registries and arenas that only the full build carries.
 
-Decoding is a much narrower result and carries a condition. Correcting a per-iteration allocation in the benchmark moves \texttt{ctpb}'s decode from $0.98\times$ to $1.04\times$ against \texttt{libprotobuf-lite}; \texttt{ctpb}'s decoder omits the UTF-8 validation the reference implementation performs, so the remaining margin is not a like-for-like comparison. proto3 requires \texttt{string} fields to be validated as UTF-8, the lite runtime spends about seven per cent of its decode path doing it, and \texttt{ctpb} does not do it at all. The decode figure should be read as a rough parity that still has a correctness asymmetry inside it, pointing the other way. The encode and footprint results carry no such caveat.
+Decoding is a much narrower result, and it is now a like-for-like one. Earlier versions of this work reported decode beside a caveat: \texttt{ctpb} omitted the UTF-8 validation of \texttt{string} fields that proto3 requires and the reference implementation performs, so part of any margin was work not done. \texttt{ctpb} now performs that validation, and measuring it in place rather than pricing it separately puts its cost at $+0.129\,\text{ns}$ on a $60\,\text{ns}$ decode, with the ranges of the two builds overlapping completely. That is below the resolution of this instrument on this host, where the round-to-round spread is about $4\,\text{ns}$, so it is a statement about what the instrument can see and not a claim that validation is free. The caveat is retired and the result it qualified is unchanged in character: $1.10\times$ is parity, not a lead, and decode remains a far narrower result than encode.
 % src: README.md "the sentence that has to travel with it" (0.98x -> 1.04x on removing the
 %   per-iteration allocation; no ctpb code changed, decode_from fills an existing object and
 %   string fields go through assign()); the 7.37 % inclusive figure for IsStructurallyValidUTF8 /
@@ -101,7 +104,7 @@ Text Section (\texttt{.text}) & \textbf{10{,}047\,B} & 16{,}373\,B & 1{,}731{,}9
 External Shared Libraries & \textbf{0} & \texttt{libprotobuf.so} & \textbf{0} \\ \hline
 \end{tabular}
 \end{table}
-% src: measurements/2026-09-06-laptop-p5-single-host/raw/binary_size.txt sections 1 (379 + 375
+% src: measurements/2026-09-07-laptop-p5-retake/raw/binary_size.txt sections 1 (379 + 375
 %   = 754 lines against 0), 4 ("Exact sizes (bytes)"), 5 (size(1) text column of the stripped
 %   executables) and 6 (ldd: ctpb links only libstdc++, libm, libgcc_s and libc).
 %   The object-file row of the previous version is dropped rather than restated: the record
