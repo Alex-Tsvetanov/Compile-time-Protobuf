@@ -37,6 +37,30 @@ comes off.
 
 ### Footprint, from exact bytes
 
+> **The validator IS in this binary, and the footprint metric could not have shown it.**
+> Asked because the stripped size is byte-identical to the pre-validation record's, which
+> for a re-measured figure is an anomaly rather than a reassurance. Measured, not reasoned:
+>
+> | | stripped file | aggregate text | `utf8_dfa` table in `.rodata` |
+> |---|---|---|---|
+> | before validation | 18,776 B | 10,047 | absent |
+> | after validation | **18,776 B** | **10,941** | **present** |
+>
+> Text grew **894 bytes** and the DFA table appeared, while the file did not change by one
+> byte. Both binaries place `.text` at offset `0x10f0` and `.rodata` at `0x3000`: section
+> offsets are **page-aligned**, so growth up to roughly 4 KB is absorbed into existing
+> padding without moving an offset or changing the file size.
+>
+> **So the footprint and the decode figures are measured on the same code** — which is what
+> the question was — and `person.cpp` does decode two `string` fields, so the validation
+> path is reachable rather than dead.
+>
+> **And the metric has a resolution floor of about one page.** 93.70× is sound, but it
+> cannot resolve a change smaller than ~4 KB, and a reader who takes an unchanged footprint
+> as evidence that nothing was added would be wrong. An unchanged measurement after a change
+> to the thing measured is a result requiring explanation, not a confirmation.
+
+
 | | bytes (stripped) | ratio |
 |---|---|---|
 | ctpb | **18,776** | — |
