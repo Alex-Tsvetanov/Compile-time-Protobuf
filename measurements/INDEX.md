@@ -1,5 +1,8 @@
 # Measurement record index
 
+Read off the tree at `3a67e64`. An index without the commit it was read at is a digest without
+its span: a reader cannot tell whether a row is current or merely was.
+
 One row per record set, in the commit that deposits it, and changed in the commit that
 supersedes it. An index maintained separately from the records it indexes goes stale, and a
 stale index is worse than none because it is believed.
