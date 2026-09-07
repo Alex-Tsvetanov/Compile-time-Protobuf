@@ -145,12 +145,12 @@ different costs are reported and should not be confused: the parser itself, comp
 \texttt{-O3} and executed at run time, processes the largest schema tested in under
 $11.4\,\mu\text{s}$, whereas the cost a build actually pays is incurred inside constant
 evaluation, and is bounded there not by memory but by the compiler's step limit, a single
-message of 300 \texttt{int32} fields compiling under Clang's default of $1{,}048{,}576$ steps
-and one of 301 not. At run time the generated code encodes at $5{,}419.9\,\text{MiB/s}$,
-$5.57\times$ the \texttt{libprotobuf-lite} baseline and $5.33\times$ the full library.
-Decoding reaches parity rather than a margin, $1.04\times$ against the lite baseline, and
-that figure still contains a correctness asymmetry: \texttt{ctpb} omits the UTF-8 validation
-of \texttt{string} fields that proto3 requires and the reference implementation performs.
+message of 304 \texttt{int32} fields compiling under Clang's default of $1{,}048{,}576$ steps
+and the next not. At run time the generated code encodes at $6{,}776.9\,\text{MiB/s}$,
+$5.59\times$ the \texttt{libprotobuf-lite} baseline and $5.38\times$ the full library.
+Decoding reaches parity rather than a margin, $1.10\times$ against the lite baseline, and the
+comparison is like-for-like: \texttt{ctpb} performs the UTF-8 validation of \texttt{string}
+fields that proto3 requires, at a cost below the resolution of the instrument.
 Wire-format fidelity is verified bidirectionally against the reference implementation and a
 stripped static executable is $18{,}776$ bytes against $1{,}759{,}368$. Two limits bound
 the claim: P2996 exists only in experimental compiler branches pending ISO C++26
