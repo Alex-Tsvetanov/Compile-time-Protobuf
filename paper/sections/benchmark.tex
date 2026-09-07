@@ -114,6 +114,17 @@ External Shared Libraries & \textbf{0} & \texttt{libprotobuf.so} & \textbf{0} \\
 For a single 3-field message \texttt{protoc} emits 754 lines across \texttt{.pb.h} and \texttt{.pb.cc}, whereas \texttt{ctpb} emits no files at all (Table~\ref{tab:binary_footprint}). In fully static deployments \texttt{ctpb}'s stripped executable is $18{,}776$ bytes against $1{,}759{,}368$, a $93.70\times$ reduction, because \texttt{libprotobuf} statically bundles descriptor pools, reflection registries, mutex tables, and arena allocators while \texttt{ctpb} compiles to exact inlined field loops. Against the dynamic build the reduction is $1.46\times$, and the dynamic \texttt{ctpb} build links only \texttt{libc}, \texttt{libm}, \texttt{libstdc++} and \texttt{libgcc\_s}, removing \texttt{libprotobuf.so} version skew from deployment. These are byte counts rather than rounded kilobytes, which is what makes the ratio checkable: the figure this work has claimed all along is right, and it could not previously be recovered from what was published with it.
 % src: raw/binary_size.txt section 4; 1759368 / 18776 = 93.6996, and 27504 / 18776 = 1.4649
 
+One property of the metric belongs beside the ratio. Section offsets here are page-aligned, so
+growth of up to roughly 4\,KB is absorbed into existing padding without changing the file size: the
+metric has a resolution floor of about one page. Adding UTF-8 validation to the decoder grew the
+aggregate text section by 894 bytes and placed the DFA table in \texttt{.rodata} while the stripped
+file stayed byte-identical at $18{,}776$. The $93.70\times$ ratio is unaffected, both sides being
+measured alike and separated by more than four hundred times the floor; what the floor bounds is
+the reading of a future unchanged figure, which is not evidence that nothing was added.
+% src: measurements/2026-09-07-laptop-p5-retake/README.md -- 18776 B stripped before and after,
+%   text 10047 -> 10941, utf8_dfa absent -> present in .rodata, .text 0x10f0 and .rodata 0x3000
+%   in both binaries; (1759368-18776)/4096 = 425.0 times the ~4 KB floor.
+
 \subsection{Reference Interoperability and gRPC Parity}
 \label{sec:interop}
 Correctness was established by dual-direction interoperability testing against \texttt{libprotobuf} 3.21.12 and the \texttt{protoc} code generator \cite{protobuf_spec}. Messages serialized by Google's \texttt{SerializeToString()} decode through \texttt{ctpb::decode<T>()} with full fidelity across scalars, Zigzag integers, strings, enums, nested messages, \texttt{bytes} fields, and packed repeated scalars; in the reverse direction, buffers produced by \texttt{ctpb::encode()} parse cleanly through Google's \texttt{ParseFromArray()}, with all wire tags, varints, and length delimiters conforming to reference parser expectations. Packed repeated fields and \texttt{bytes} are covered explicitly because both are encoded differently from the singular scalar path and are the cases where an independent implementation most easily diverges.

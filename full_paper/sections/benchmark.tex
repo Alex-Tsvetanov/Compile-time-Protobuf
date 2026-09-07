@@ -176,6 +176,21 @@ In fully static deployments \texttt{ctpb}'s stripped executable is $18{,}776$ by
 %   dropped rather than restated: the record holds object sizes only as ls -lh rounding, which
 %   is where the earlier 21.9 and 31.3 KB tenths came from. 1759368/18776 = 93.6996.
 
+One property of this metric belongs beside the ratio, and it was found by asking why a number had
+not moved. Section offsets in these binaries are page-aligned, both placing \texttt{.text} at
+\texttt{0x10f0} and \texttt{.rodata} at \texttt{0x3000}, so growth of up to roughly 4\,KB is
+absorbed into existing padding without moving an offset or changing the file size at all. Adding
+UTF-8 validation to the decoder grew the aggregate text section by 894 bytes and placed the DFA
+table in \texttt{.rodata}, and the stripped file stayed byte-identical at $18{,}776$. The
+$93.70\times$ ratio is unaffected: both sides are measured the same way and the difference between
+them is more than four hundred times the floor. What the floor bounds is the reading of a
+\emph{future} unchanged figure. An unchanged footprint after a change to the code under measurement
+is a result requiring explanation rather than evidence that nothing was added.
+% src: measurements/2026-09-07-laptop-p5-retake/README.md, the section-padding measurement:
+%   stripped file 18776 B before and after validation, aggregate text 10047 -> 10941 (+894),
+%   utf8_dfa table absent -> present in .rodata, .text at 0x10f0 and .rodata at 0x3000 in both.
+%   (1759368-18776)/4096 = 425.0, so the measured difference is 425 times the ~4 KB floor.
+
 \subsection{Reference Interoperability and gRPC Transport Parity}
 To establish protocol correctness, we performed dual-direction interoperability tests against Google's official \texttt{libprotobuf} reference implementation (3.21.12) and the \texttt{protoc} code generator \cite{protobuf_spec}. These tests cover scalar fields, strings, nested messages and enums, and, following a wire-format review that found the initial implementation mis-encoded them, \texttt{bytes} fields and packed repeated scalar fields as well.
 Fidelity was checked in both directions. Messages populated and serialized with Google's \texttt{SerializeToString()} were decoded by \texttt{ctpb::decode<T>()}, and field values across scalars, signed zigzag integers, strings, enums and nested messages matched with 100\% fidelity. In the other direction, messages serialized by \texttt{ctpb::encode()} were parsed by Google's \texttt{ParseFromArray()}, and all wire tags, varints and length delimiters conformed exactly to what the reference parser expects.
