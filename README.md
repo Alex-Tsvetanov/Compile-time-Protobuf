@@ -383,3 +383,29 @@ under a gated driver rather than re-labelled.
 the record's `method/` as a diff against the committed evaluation script. Until that correction
 is merged into the committed harness, re-running the repository's own script reproduces the old
 asymmetry rather than the published number.
+
+### Audit, 2026-09-07: what these manuscripts owe
+
+**Claim.** Compile-time Protobuf without a code generator: schema parsing under 11.4\,µs, encode
+about 5.6× the reference, decode at parity, and a 93.70× stripped-binary reduction.
+
+**Record.** `measurements/2026-09-07-laptop-p5-retake`, which supersedes the single-host set.
+
+**Is the code still the code that was measured? Yes, and it is the one tree where that answer
+changed today.** UTF-8 validation landed in the merge at `dfed528`, and the retake followed it —
+the retake's record commit is `b2bd0b4` at 03:02, and `include/ctpb/wire.hpp` carries the
+validation on `main` now. Both manuscripts cite only the retake: six references, all to
+`2026-09-07-laptop-p5-*`, and a scan for every superseded single-host figure returns nothing.
+
+**One question the audit raises and cannot answer.** The stripped-binary footprint is **byte-
+identical before and after validation landed**: 18,776 / 27,504 / 1,759,368 in the single-host
+`raw/binary_size.txt` and the same three numbers in the retake's. The retake did re-measure — it
+has its own `raw/binary_size.txt` — so this is not a transcription. But validation is code, and
+code that is linked adds bytes.
+
+Either the validator is not reachable from the footprint binary, which measures a 3-field
+`Person` and may never exercise a `string` field's validation path, or it is header-only and
+optimised away there. **Both are plausible and the record does not say which.** That matters for
+the footprint claim only if a reader takes 18,776 bytes to include the validation the decode
+figures now depend on. It is one sentence in the record either way, and it belongs to whoever took
+the measurement rather than to this audit.
