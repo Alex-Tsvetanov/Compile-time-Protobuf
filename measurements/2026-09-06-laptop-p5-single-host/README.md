@@ -1,5 +1,12 @@
 # P5 single-host campaign, 2026-09-06 — every cell from one sitting
 
+> **SUPERSEDED 2026-09-07** by `measurements/2026-09-07-laptop-p5-retake`. That set was
+> taken after ctpb began validating UTF-8 on string fields, so its decode figure is
+> like-for-like against libprotobuf and carries no UTF-8 caveat, and it ran through a
+> repaired `rerun_all.sh` rather than around a broken one. Its absolutes are not
+> comparable with these; only the ratios transfer.
+
+
 The re-measurement P5's table needs. Every figure below comes from **one host, one pinned
 session, one build per arm**, with the benchmark's decode asymmetry corrected. It replaces a
 published table whose cells came from a different machine under a harness this repository has
