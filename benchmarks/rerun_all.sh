@@ -43,10 +43,47 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAMP="$(date +%Y-%m-%d)"
 OUT="$REPO/benchmarks/results-$STAMP"
-IMAGE="sleepingeight/clang-cpp-refl:latest"
+# THE BASE IMAGE IS NOT ENOUGH AND THIS SCRIPT USED TO USE IT.
+#
+# sleepingeight/clang-cpp-refl carries the P2996 reflection toolchain and no protobuf. The
+# runtime comparisons link against libprotobuf and libprotobuf-lite, so under the base image
+# every one of them failed to compile -- and because run_in_image reported the failure and
+# returned success anyway, the whole script exited 0 having measured nothing. A green exit
+# and an empty results directory is the worst failure mode available, because it is the one
+# nobody checks.
+#
+# Built here rather than pulled, from a Dockerfile that deliberately does NOT copy the
+# repository in: the tree arrives by bind mount so that what is measured is the working
+# tree, not a snapshot baked at image build time. The repository's top-level Dockerfile does
+# COPY . /workspace, which is right for a self-contained demo image and wrong for a
+# measurement driver.
+BASE_IMAGE="sleepingeight/clang-cpp-refl:latest"
+IMAGE="ctpb-bench:protobuf"
 
 mkdir -p "$OUT"
 echo "writing to $OUT"
+
+# Built once and cached thereafter. No COPY, so a change to the tree does not invalidate
+# it and the image stays a statement about the toolchain rather than about the source.
+if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
+  echo "building $IMAGE (once; cached afterwards)"
+  docker build --platform=linux/amd64 -t "$IMAGE" -f - . <<DOCKERFILE
+FROM --platform=linux/amd64 $BASE_IMAGE
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y \
+    pkg-config libprotobuf-dev protobuf-compiler ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /workspace
+DOCKERFILE
+fi
+
+# Which image actually ran, by id, so a record can say what produced it rather than naming
+# a tag that may have moved.
+echo "image $IMAGE $(docker image inspect --format '{{.Id}}' "$IMAGE")"
+
+# Every failure is counted and the script exits non-zero if any step failed. It used to
+# print FAILED and return success, so `rerun_all.sh && echo fine` printed fine.
+FAILURES=0
 
 # ---------------------------------------------------------------- environment, first
 # Captured before anything runs, so the host is named even if a later step fails.
@@ -96,13 +133,17 @@ run_in_image() {           # run_in_image <label> <script-path-relative-to-repo>
   local label="$1" script="$2"
   echo
   echo "=== $label ==="
-  if docker run --rm --platform=linux/amd64 -v "$REPO":/work -w /work "$IMAGE" \
+  # /workspace, not /work. Every eval script hardcodes -I/workspace/include, so mounting
+  # anywhere else compiles nothing -- which is the second half of how this script came to
+  # exit 0 having measured nothing.
+  if docker run --rm --platform=linux/amd64 -v "$REPO":/workspace -w /workspace "$IMAGE" \
         bash "$script" > "$OUT/$label.txt" 2>&1; then
     echo "ok -> $OUT/$label.txt"
     tail -5 "$OUT/$label.txt"
   else
     echo "FAILED, see $OUT/$label.txt" >&2
     tail -20 "$OUT/$label.txt" >&2
+    FAILURES=$((FAILURES + 1))
   fi
 }
 
@@ -117,6 +158,11 @@ if [ -f "$REPO/measurements/2026-09-04-constexpr-step-limit/run2.sh" ]; then
 fi
 
 echo
+if [ "$FAILURES" -ne 0 ]; then
+  echo "$FAILURES step(s) FAILED. $OUT is incomplete and must not be treated as a run." >&2
+  echo "Raw output for the steps that did run is in $OUT" >&2
+  exit 1
+fi
 echo "done. Raw output is in $OUT"
 echo
 echo "Next, and none of it is automatic:"

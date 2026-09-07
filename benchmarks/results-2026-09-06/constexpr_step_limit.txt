@@ -1,0 +1,25 @@
+=== 1. exact threshold at the DEFAULT step limit (bisection) ===
+   375 fields -> other
+   312 fields -> other
+   281 fields -> other
+   265 fields -> other
+   257 fields -> other
+   253 fields -> other
+   251 fields -> other
+  => largest single message that compiles at the default limit: 250 fields (fails at 251)
+
+=== 2. does -fconstexpr-steps rescue 500 and 1000 fields? ===
+    500 fields, -fconstexpr-steps=4194304    -> other:     2 | #include <ctpb/ctpb.hpp>
+    500 fields, -fconstexpr-steps=16777216   -> other:     2 | #include <ctpb/ctpb.hpp>
+    500 fields, -fconstexpr-steps=67108864   -> other:     2 | #include <ctpb/ctpb.hpp>
+    500 fields, -fconstexpr-steps=268435456  -> other:     2 | #include <ctpb/ctpb.hpp>
+   1000 fields, -fconstexpr-steps=4194304    -> other:     2 | #include <ctpb/ctpb.hpp>
+   1000 fields, -fconstexpr-steps=16777216   -> other:     2 | #include <ctpb/ctpb.hpp>
+   1000 fields, -fconstexpr-steps=67108864   -> other:     2 | #include <ctpb/ctpb.hpp>
+   1000 fields, -fconstexpr-steps=268435456  -> other:     2 | #include <ctpb/ctpb.hpp>
+
+=== 3. is the default limit what Clang documents (1048576)? ===
+  explicit default also fails (consistent with default==1048576)
+
+=== 4. does the project set any constexpr flag of its own? ===
+  none anywhere in the build

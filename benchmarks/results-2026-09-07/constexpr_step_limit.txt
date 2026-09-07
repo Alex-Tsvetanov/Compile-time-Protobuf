@@ -1,0 +1,20 @@
+=== 1. exact threshold at the DEFAULT step limit (bisection) ===
+   375 fields -> STEP_LIMIT
+   312 fields -> STEP_LIMIT
+   281 fields -> pass
+   296 fields -> pass
+   304 fields -> STEP_LIMIT
+   300 fields -> pass
+   302 fields -> STEP_LIMIT
+   301 fields -> STEP_LIMIT
+  => largest single message that compiles at the default limit: 300 fields (fails at 301)
+
+=== 2. does -fconstexpr-steps rescue 500 and 1000 fields? ===
+    500 fields, -fconstexpr-steps=4194304    -> pass
+   1000 fields, -fconstexpr-steps=4194304    -> pass
+
+=== 3. is the default limit what Clang documents (1048576)? ===
+  explicit default also fails (consistent with default==1048576)
+
+=== 4. does the project set any constexpr flag of its own? ===
+  none anywhere in the build

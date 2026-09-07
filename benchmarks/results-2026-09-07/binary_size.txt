@@ -1,0 +1,86 @@
+================================================================
+1. GENERATED INTERMEDIATE SOURCE CODE LINES
+================================================================
+protoc code generator output:
+  379 /tmp/eval_ctpb_size/addressbook.pb.h
+  375 /tmp/eval_ctpb_size/addressbook.pb.cc
+  754 total
+ctpb static reflection output:
+       0 lines (0 files, purely in-compiler AST reflection)
+
+================================================================
+2. OBJECT FILE (.o) SIZES AND SECTIONS
+================================================================
+-rw-r--r-- 1 root root  26K Sep  6 23:59 /tmp/eval_ctpb_size/addressbook.pb.o
+-rw-r--r-- 1 root root  24K Sep  6 23:59 /tmp/eval_ctpb_size/person_ctpb.o
+-rw-r--r-- 1 root root 5.5K Sep  6 23:59 /tmp/eval_ctpb_size/person_protoc.o
+
+   text	   data	    bss	    dec	    hex	filename
+   8171	      8	      0	   8179	   1ff3	/tmp/eval_ctpb_size/person_ctpb.o
+   5764	    400	     33	   6197	   1835	/tmp/eval_ctpb_size/addressbook.pb.o
+   1146	      8	      0	   1154	    482	/tmp/eval_ctpb_size/person_protoc.o
+
+================================================================
+3. UNSTRIPPED EXECUTABLE SIZES
+================================================================
+-rwxr-xr-x 1 root root  26K Sep  6 23:59 /tmp/eval_ctpb_size/person_ctpb
+-rwxr-xr-x 1 root root  37K Sep  6 23:59 /tmp/eval_ctpb_size/person_protoc_dyn
+-rwxr-xr-x 1 root root 2.3M Sep  6 23:59 /tmp/eval_ctpb_size/person_protoc_static
+
+================================================================
+4. STRIPPED STANDALONE EXECUTABLE SIZES
+================================================================
+-rwxr-xr-x 1 root root  19K Sep  6 23:59 /tmp/eval_ctpb_size/person_ctpb_stripped
+-rwxr-xr-x 1 root root  27K Sep  6 23:59 /tmp/eval_ctpb_size/person_protoc_dyn_stripped
+-rwxr-xr-x 1 root root 1.7M Sep  6 23:59 /tmp/eval_ctpb_size/person_protoc_static_stripped
+
+Exact sizes (bytes):
+18776\t/tmp/eval_ctpb_size/person_ctpb_stripped
+27504\t/tmp/eval_ctpb_size/person_protoc_dyn_stripped
+1759368\t/tmp/eval_ctpb_size/person_protoc_static_stripped
+
+================================================================
+5. SECTION BREAKDOWN OF STRIPPED EXECUTABLES (size)
+================================================================
+   text	   data	    bss	    dec	    hex	filename
+  10941	    720	      8	  11669	   2d95	/tmp/eval_ctpb_size/person_ctpb_stripped
+  16373	   1384	     56	  17813	   4595	/tmp/eval_ctpb_size/person_protoc_dyn_stripped
+1731945	  19672	   1240	1752857	 1abf19	/tmp/eval_ctpb_size/person_protoc_static_stripped
+
+================================================================
+6. RUNTIME DYNAMIC SHARED LIBRARY DEPENDENCIES (ldd)
+================================================================
+-- ctpb dependencies:
+	linux-vdso.so.1 (0x00007f114db8d000)
+	libstdc++.so.6 => /lib/x86_64-linux-gnu/libstdc++.so.6 (0x00007f114d8fe000)
+	libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007f114d815000)
+	libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00007f114d7e7000)
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f114d5d5000)
+	/lib64/ld-linux-x86-64.so.2 (0x00007f114db8f000)
+
+-- protoc dynamic dependencies:
+	linux-vdso.so.1 (0x00007f4127195000)
+	libprotobuf.so.32 => /lib/x86_64-linux-gnu/libprotobuf.so.32 (0x00007f4126e96000)
+	libstdc++.so.6 => /lib/x86_64-linux-gnu/libstdc++.so.6 (0x00007f4126c18000)
+	libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007f4126b2f000)
+	libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00007f4126b01000)
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f41268ef000)
+	libz.so.1 => /lib/x86_64-linux-gnu/libz.so.1 (0x00007f41268d1000)
+	/lib64/ld-linux-x86-64.so.2 (0x00007f4127197000)
+
+================================================================
+7. EXECUTION VALIDATION
+================================================================
+-- Running ctpb:
+Encoded Person to 42 wire bytes
+Successfully decoded Person via compile-time reflection:
+  name  : Alex Tsvetanov
+  id    : 42
+  email : atsvetanov@tu-sofia.bg
+
+-- Running protoc:
+Encoded Person to 42 wire bytes
+Successfully decoded Person via protoc:
+  name  : Alex Tsvetanov
+  id    : 42
+  email : atsvetanov@tu-sofia.bg

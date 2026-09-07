@@ -1,0 +1,3 @@
+governor=powersave
+epp=balance_performance
+boost=1

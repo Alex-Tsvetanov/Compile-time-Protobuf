@@ -1,0 +1,21 @@
+# Environment for the re-run of 2026-09-07
+
+## Host
+uname:        Linux 7.2.3-arch1-2 x86_64 GNU/Linux
+cpu model:    AMD Ryzen 7 5800H with Radeon Graphics
+cpu cores:    16
+governor:     performance
+load at start:0.56 0.55 0.59
+virtualised:  none
+no systemd-detect-virt
+
+## Toolchain, on the host
+docker:       Docker version 29.7.2, build a7dcaa6fdb
+git commit:   be4497e78e943eaf3b1e7fa8850867175deca47b
+git dirty:    yes
+
+## Toolchain, inside the image
+clang:        clang version 21.0.0git (https://github.com/bloomberg/clang-p2996.git 2ea0a79fe7bb5f6fdb8c687ba0e21ab63696e7f7)
+protobuf:     libprotoc 3.21.12
+libprotobuf:  3.21.12
+image arch:   x86_64

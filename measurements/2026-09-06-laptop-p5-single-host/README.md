@@ -1,5 +1,12 @@
 # P5 single-host campaign, 2026-09-06 — every cell from one sitting
 
+> **SUPERSEDED 2026-09-07** by `measurements/2026-09-07-laptop-p5-retake`. That set was
+> taken after ctpb began validating UTF-8 on string fields, so its decode figure is
+> like-for-like against libprotobuf and carries no UTF-8 caveat, and it ran through a
+> repaired `rerun_all.sh` rather than around a broken one. Its absolutes are not
+> comparable with these; only the ratios transfer.
+
+
 The re-measurement P5's table needs. Every figure below comes from **one host, one pinned
 session, one build per arm**, with the benchmark's decode asymmetry corrected. It replaces a
 published table whose cells came from a different machine under a harness this repository has
@@ -132,3 +139,44 @@ cbbc7bce5ddef49570e7f6803742da23d786ce201efb63d72029d1b68673b384  raw/constexpr_
 667401e63192ddeec88236845136f0bef9340d68a6799eba997ba0455fdfac1d  raw/host-state.txt
 852016f9889cc29ed8fd87ef4b163fd27cdfc2584d9efea1df1e39b088c4f83f  raw/runtime_prealloc.txt
 ```
+
+## Addendum 2026-09-06, later the same evening: background contention checked
+
+A process was found leaking on this host at 23:06 — `http3_app_mig` from an unrelated
+HTTP/3 integration test, orphaned to PID 1, running continuously at about 1.2% of one
+core inside a network namespace. Since this record captures the clock in detail and
+captures nothing about what else was running, the question was whether it overlapped
+this campaign. **It did not.** No number here changes and nothing was re-run.
+
+The window, established from the journal rather than from recollection:
+
+| event | time (+0300) | source |
+|---|---|---|
+| campaign pins boost | 19:27:02 | `sudo tee .../cpufreq/boost` |
+| campaign sets EPP across all CPUs | 19:28:55 | `sudo tee .../energy_performance_preference` |
+| campaign restores EPP, last write | 19:30:41 | same |
+| record committed | 19:32:53, 19:33:08 | `git log` |
+| **leaked namespace created** | **19:53:27** | `sudo ip netns add coroute-h3mig-43408-srv` |
+
+The campaign was finished, restored and committed **22 minutes 46 seconds** before the
+leaking process existed.
+
+Two independent derivations agree, which is why this is stated rather than estimated.
+`ps` reported the process at 03:13:15 elapsed when `uptime` in the same command block
+read 23:06:40, putting its start at 19:53:25; the journal independently records the
+namespace being created at 19:53:27. Neither depends on the other, and the process was
+killed before either was computed, so the arithmetic could not be re-checked against
+`/proc` afterwards.
+
+### The gap this exposed, which is real and is not fixed here
+
+`raw/host-state.txt` records governor, EPP, min and max frequency and boost before,
+during and after, and verifies the restore against the captured baseline. It records
+**nothing about contention**. This campaign has an excellent account of the clock and no
+account of the load. That it happens not to matter here was established after the fact by
+a journal that is not part of the record, and on a host where the leak began 23 minutes
+too late to matter — neither of which is a property of the method.
+
+A campaign method should capture load average and a process listing, or `/proc/stat`
+deltas, either side of the measured window. Every campaign in this corpus has the same
+blind spot. Tracked as a harness change, not a correction to these numbers.

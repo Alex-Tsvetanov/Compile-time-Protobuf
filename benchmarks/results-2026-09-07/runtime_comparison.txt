@@ -1,0 +1,16 @@
+===================================================================
+RUNTIME PERFORMANCE COMPARISON: ctpb vs. Google libprotobuf
+===================================================================
+Benchmark Iterations : 1000000
+Message Payload Size : 47 bytes
+-------------------------------------------------------------------
+1. SERIALIZATION / ENCODE:
+   - ctpb            :   6.55 ns/op | 152.60 MOps/s | 6839.88 MiB/s
+   - Google Protobuf :  35.17 ns/op | 28.43 MOps/s | 1274.35 MiB/s
+   -> Relative Ratio : 5.37x
+-------------------------------------------------------------------
+2. DESERIALIZATION / DECODE:
+   - ctpb            :  61.17 ns/op | 16.35 MOps/s | 732.71 MiB/s
+   - Google Protobuf :  68.25 ns/op | 14.65 MOps/s | 656.73 MiB/s
+   -> Speedup (ctpb) : 1.12x (10.4% faster)
+===================================================================
