@@ -1,0 +1,17 @@
+# per-rep medians — is the drift mitigation falsifiable?
+
+ rep   ctpb enc     pb enc  enc ratio     ctpb dec     pb dec  dec ratio
+   1      7.543     34.331      4.55x       47.796     65.731      1.38x
+   2      7.505     36.971      4.93x       47.660     69.663      1.46x
+   3      7.766     35.232      4.54x       52.029     65.745      1.26x
+   4      7.530     37.422      4.97x       50.261     72.359      1.44x
+   5      8.266     37.967      4.59x       51.629     73.898      1.43x
+
+encode      ctpb: per-rep medians spread = 0.761 ns (10.09% of median)
+encode  protobuf: per-rep medians spread = 3.636 ns (9.83% of median)
+encode     ratio: 4.54x .. 4.97x  (spread 0.43)
+
+decode      ctpb: per-rep medians spread = 4.369 ns (8.69% of median)
+decode  protobuf: per-rep medians spread = 8.167 ns (11.72% of median)
+decode     ratio: 1.26x .. 1.46x  (spread 0.20)
+

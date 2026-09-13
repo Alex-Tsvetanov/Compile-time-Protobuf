@@ -1,0 +1,19 @@
+# environment, captured 2026-09-13 at the start of this sitting
+host:          alex-laptop, AMD Ryzen 7 5800H, 16 logical cores
+kernel:        7.2.3-arch1-2
+virtualised:   none (host); measurements run in a native amd64 container
+governor:      performance x16
+epp:           performance
+boost:         1
+# NOTE: governor and epp were FOUND in this state and LEFT UNTOUCHED.
+# This is the PINNED state, not the host baseline. The baseline captured on
+# 2026-09-07 (measurements/2026-09-07-laptop-p5-retake/raw/pin-state.txt) is
+# governor=powersave epp=balance_performance boost=1. Nothing restored it.
+sudo -n:       exit 0 (0 = passwordless sudo available, so pinning IS possible for this user)
+load at start: 0.49 0.42 0.28
+image:         ctpb-dev:2026-09-06 (from this repo's Dockerfile over sleepingeight/clang-cpp-refl:latest)
+container cxx: clang 21.0.0git bloomberg/clang-p2996 @ 2ea0a79fe7bb5f6fdb8c687ba0e21ab63696e7f7
+container protoc: libprotoc 3.21.12
+host cxx:      clang 22.1.8 (rejects -freflection: no native reflection arm exists)
+host protoc:   libprotoc 36.0 / libprotobuf 36.0.0
+tree:          fe8168ba5af56a997d002a2c8cf7698f4caee8cf on work/reflection-gate

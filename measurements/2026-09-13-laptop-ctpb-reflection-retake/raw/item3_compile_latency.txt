@@ -1,0 +1,8 @@
+trial=0 small_us=0.517 medium_us=1.984 large_us=7.530
+trial=1 small_us=0.526 medium_us=2.023 large_us=7.515
+trial=2 small_us=0.525 medium_us=2.012 large_us=7.505
+trial=3 small_us=0.517 medium_us=2.013 large_us=7.491
+trial=4 small_us=0.527 medium_us=2.048 large_us=7.484
+trial=5 small_us=0.518 medium_us=2.003 large_us=7.482
+trial=6 small_us=0.515 medium_us=1.985 large_us=7.442
+SCRIPT_EXIT=0

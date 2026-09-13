@@ -1,0 +1,35 @@
+# build cost, median [min, max] over 6 retained trials (trial 0 excluded as warm-up)
+
+ fields               ctpb (s)             protoc (s)    ratio
+      5      2.09 [2.08, 2.10]      2.49 [2.47, 2.50]    0.84x
+     25      2.95 [2.90, 2.99]      2.63 [2.60, 2.66]    1.12x
+    100      9.05 [8.59, 9.14]      3.15 [3.12, 3.21]    2.87x
+
+# where the protoc arm's time goes (medians, s)
+
+ fields    compile_generated         compile_user             generate                 link
+      5                 1.26                 1.16                 0.01                 0.05
+     25                 1.39                 1.18                 0.01                 0.05
+    100                 1.86                 1.23                 0.01                 0.05
+
+# footprint, exact sections (bytes)
+
+ fields     arm       file      .text    .rodata      .data
+      5    ctpb     18,768      5,891        280         24
+      5  protoc     23,288      4,328        538        160
+     25    ctpb     26,960     13,315        632         24
+     25  protoc     27,464     10,632        622        240
+    100    ctpb     55,632     40,851      1,984         24
+    100  protoc     56,456     35,912        922        544
+
+% --- LaTeX rows: build cost ---
+5 & \textbf{2.09} [2.08, 2.10] & 2.49 [2.47, 2.50] & 0.84$\times$ \\
+25 & \textbf{2.95} [2.90, 2.99] & 2.63 [2.60, 2.66] & 1.12$\times$ \\
+100 & \textbf{9.05} [8.59, 9.14] & 3.15 [3.12, 3.21] & 2.87$\times$ \\
+
+% --- LaTeX rows: exact .text ---
+5 & \textbf{5{,}891}\,B & 4{,}328\,B \\
+25 & \textbf{13{,}315}\,B & 10{,}632\,B \\
+100 & \textbf{40{,}851}\,B & 35{,}912\,B \\
+
+% generated source lines: 5 fields -> 753, 25 fields -> 1919, 100 fields -> 6369

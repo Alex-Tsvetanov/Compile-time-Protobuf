@@ -1,0 +1,47 @@
+flags: -O3 -std=c++26 -freflection -I/workspace/include   (no -stdlib=libstdc++, which would close the gate)
+per-compile timeout: 900s
+n=25 PASS compile_s=1.9
+n=100 PASS compile_s=2.4
+n=300 PASS compile_s=3.5
+n=400 FAIL rc=1 compile_s=3.7
+    /tmp/bisect_syn/n400.cpp:413:1: error: evaluating expression of a consteval block must be a constant expression
+    /tmp/bisect_syn/n400.cpp:416:16: error: implicit instantiation of undefined template 'ctpb::message_storage<fixed_string<9431>{"\n    syntax = \"proto3\";\n    messag[...]"}, fixed_string<2UL>{"S"}>'
+    2 errors generated.
+=== binary search in (300 pass, 400 fail] ===
+n=350 FAIL rc=1 compile_s=3.5
+    /tmp/bisect_syn/n350.cpp:363:1: error: evaluating expression of a consteval block must be a constant expression
+    /tmp/bisect_syn/n350.cpp:366:16: error: implicit instantiation of undefined template 'ctpb::message_storage<fixed_string<8231>{"\n    syntax = \"proto3\";\n    messag[...]"}, fixed_string<2UL>{"S"}>'
+    2 errors generated.
+n=325 FAIL rc=1 compile_s=3.5
+    /tmp/bisect_syn/n325.cpp:338:1: error: evaluating expression of a consteval block must be a constant expression
+    /tmp/bisect_syn/n325.cpp:341:16: error: implicit instantiation of undefined template 'ctpb::message_storage<fixed_string<7631>{"\n    syntax = \"proto3\";\n    messag[...]"}, fixed_string<2UL>{"S"}>'
+    2 errors generated.
+n=312 PASS compile_s=3.5
+n=318 FAIL rc=1 compile_s=3.5
+    /tmp/bisect_syn/n318.cpp:331:1: error: evaluating expression of a consteval block must be a constant expression
+    1 error generated.
+n=315 PASS compile_s=3.5
+n=316 PASS compile_s=3.5
+n=317 PASS compile_s=3.6
+=== BOUND: n=317 compiles, n=318 does not ===
+--- diagnostic at n=318, first 20 lines ---
+/tmp/bisect_syn/n318.cpp:331:1: error: evaluating expression of a consteval block must be a constant expression
+  331 | consteval { ctpb::define_message<schema, "S">(); }
+      | ^
+/usr/local/bin/../include/c++/v1/__memory/construct_at.h:61:83: note: constexpr evaluation hit maximum step limit; possible infinite loop?
+   61 | _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 void __destroy_at(_Tp* __loc) {
+      |                                                                                   ^
+/usr/local/bin/../include/c++/v1/__memory/allocator_traits.h:313:5: note: in call to '__destroy_at<meta::info, 0>(&{*new meta::info[512]#30}[181])'
+  313 |     std::__destroy_at(__p);
+      |     ^~~~~~~~~~~~~~~~~~~~~~
+/usr/local/bin/../include/c++/v1/__vector/vector.h:763:7: note: in call to 'destroy<meta::info, 0>(members.__alloc_, &{*new meta::info[512]#30}[181])'
+  763 |       __alloc_traits::destroy(this->__alloc_, std::__to_address(--__soon_to_be_end));
+      |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/usr/local/bin/../include/c++/v1/__vector/vector.h:543:5: note: in call to 'this->__base_destruct_at_end(&{*new meta::info[512]#30}[0])'
+  543 |     __base_destruct_at_end(this->__begin_);
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/usr/local/bin/../include/c++/v1/__vector/vector.h:251:9: note: in call to 'this->__vec_.clear()'
+  251 |         __vec_.clear();
+      |         ^~~~~~~~~~~~~~
+/usr/local/bin/../include/c++/v1/__vector/vector.h:262:67: note: in call to '__destroy_vector(*this).operator()()'
+  262 |   _LIBCPP_CONSTEXPR_SINCE_CXX20 _LIBCPP_HIDE_FROM_ABI ~vector() { __destroy_vector (*this)(); }

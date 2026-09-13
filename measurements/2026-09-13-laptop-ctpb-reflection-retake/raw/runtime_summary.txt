@@ -1,0 +1,13 @@
+# throughput, median [min, max] over 100 rounds per arm, 47-byte message, wire bytes identical across arms
+
+ operation             ctpb (ns/op)      libprotobuf (ns/op)    ratio
+    encode        7.70 [7.10, 9.11]     36.97 [33.57, 41.37]    4.80x
+    decode     50.38 [45.33, 52.77]     70.39 [63.85, 77.37]    1.40x
+
+ operation     ctpb (MiB/s)    libprotobuf (MiB/s)
+    encode            5,818                  1,212
+    decode              890                    637
+
+% --- LaTeX rows ---
+Encode & \textbf{7.70} [7.10, 9.11] & 36.97 [33.57, 41.37] & 4.80$\times$ \\
+Decode & \textbf{50.38} [45.33, 52.77] & 70.39 [63.85, 77.37] & 1.40$\times$ \\

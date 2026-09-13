@@ -1,0 +1,14 @@
+SCRIPT_EXIT=0
+########## exact sections (size -A) for every artefact ##########
+person_ctpb                      file=28296      .text=7027      .rodata=812     .data=24
+person_ctpb_stripped             file=18792      .text=7027      .rodata=812     .data=24
+person_protoc_dyn                file=37872      .text=4728      .rodata=815     .data=160
+person_protoc_dyn_stripped       file=27504      .text=4728      .rodata=815     .data=160
+person_protoc_static             file=2321248    .text=1323755   .rodata=64292   .data=2904
+person_protoc_static_stripped    file=1759368    .text=1323755   .rodata=64292   .data=2904
+
+########## linkage: is libprotobuf inside or outside? ##########
+--- person_protoc_dyn
+    libprotobuf dyn deps: 1
+--- person_protoc_static
+    libprotobuf dyn deps: 0

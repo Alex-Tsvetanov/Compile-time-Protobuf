@@ -1,0 +1,36 @@
+=== build cost: one .proto file to a linked program ===
+compiler: clang version 21.0.0git (https://github.com/bloomberg/clang-p2996.git 2ea0a79fe7bb5f6fdb8c687ba0e21ab63696e7f7)
+protoc:   libprotoc 3.21.12
+flags:    -O3 -std=c++26 -I/workspace/include -freflection
+protobuf arm stdlib: -stdlib=libstdc++
+trial=0 fields=5 ctpb_build_s=2.122 protoc_build_s=2.501 protoc_generate_s=0.005 protoc_compile_generated_s=1.288 protoc_compile_user_s=1.157 protoc_link_s=0.051
+trial=1 fields=5 ctpb_build_s=2.083 protoc_build_s=2.478 protoc_generate_s=0.004 protoc_compile_generated_s=1.259 protoc_compile_user_s=1.162 protoc_link_s=0.053
+trial=2 fields=5 ctpb_build_s=2.088 protoc_build_s=2.489 protoc_generate_s=0.005 protoc_compile_generated_s=1.265 protoc_compile_user_s=1.166 protoc_link_s=0.053
+trial=3 fields=5 ctpb_build_s=2.080 protoc_build_s=2.497 protoc_generate_s=0.005 protoc_compile_generated_s=1.276 protoc_compile_user_s=1.162 protoc_link_s=0.054
+trial=4 fields=5 ctpb_build_s=2.090 protoc_build_s=2.473 protoc_generate_s=0.005 protoc_compile_generated_s=1.263 protoc_compile_user_s=1.155 protoc_link_s=0.050
+trial=5 fields=5 ctpb_build_s=2.100 protoc_build_s=2.484 protoc_generate_s=0.005 protoc_compile_generated_s=1.264 protoc_compile_user_s=1.164 protoc_link_s=0.051
+trial=6 fields=5 ctpb_build_s=2.086 protoc_build_s=2.498 protoc_generate_s=0.005 protoc_compile_generated_s=1.275 protoc_compile_user_s=1.166 protoc_link_s=0.052
+generated_lines fields=5 ctpb=0 protoc=753
+trial=0 fields=25 ctpb_build_s=2.907 protoc_build_s=2.615 protoc_generate_s=0.007 protoc_compile_generated_s=1.388 protoc_compile_user_s=1.169 protoc_link_s=0.051
+trial=1 fields=25 ctpb_build_s=2.917 protoc_build_s=2.599 protoc_generate_s=0.006 protoc_compile_generated_s=1.370 protoc_compile_user_s=1.173 protoc_link_s=0.050
+trial=2 fields=25 ctpb_build_s=2.901 protoc_build_s=2.609 protoc_generate_s=0.006 protoc_compile_generated_s=1.376 protoc_compile_user_s=1.174 protoc_link_s=0.053
+trial=3 fields=25 ctpb_build_s=2.911 protoc_build_s=2.627 protoc_generate_s=0.006 protoc_compile_generated_s=1.379 protoc_compile_user_s=1.191 protoc_link_s=0.051
+trial=4 fields=25 ctpb_build_s=2.984 protoc_build_s=2.643 protoc_generate_s=0.007 protoc_compile_generated_s=1.405 protoc_compile_user_s=1.178 protoc_link_s=0.053
+trial=5 fields=25 ctpb_build_s=2.990 protoc_build_s=2.659 protoc_generate_s=0.007 protoc_compile_generated_s=1.406 protoc_compile_user_s=1.191 protoc_link_s=0.055
+trial=6 fields=25 ctpb_build_s=2.990 protoc_build_s=2.653 protoc_generate_s=0.006 protoc_compile_generated_s=1.402 protoc_compile_user_s=1.194 protoc_link_s=0.051
+generated_lines fields=25 ctpb=0 protoc=1919
+trial=0 fields=100 ctpb_build_s=8.630 protoc_build_s=3.065 protoc_generate_s=0.013 protoc_compile_generated_s=1.812 protoc_compile_user_s=1.190 protoc_link_s=0.050
+trial=1 fields=100 ctpb_build_s=8.922 protoc_build_s=3.152 protoc_generate_s=0.013 protoc_compile_generated_s=1.857 protoc_compile_user_s=1.224 protoc_link_s=0.058
+trial=2 fields=100 ctpb_build_s=9.032 protoc_build_s=3.125 protoc_generate_s=0.013 protoc_compile_generated_s=1.828 protoc_compile_user_s=1.235 protoc_link_s=0.049
+trial=3 fields=100 ctpb_build_s=8.593 protoc_build_s=3.147 protoc_generate_s=0.013 protoc_compile_generated_s=1.854 protoc_compile_user_s=1.228 protoc_link_s=0.052
+trial=4 fields=100 ctpb_build_s=9.129 protoc_build_s=3.170 protoc_generate_s=0.015 protoc_compile_generated_s=1.876 protoc_compile_user_s=1.227 protoc_link_s=0.052
+trial=5 fields=100 ctpb_build_s=9.142 protoc_build_s=3.137 protoc_generate_s=0.013 protoc_compile_generated_s=1.850 protoc_compile_user_s=1.222 protoc_link_s=0.052
+trial=6 fields=100 ctpb_build_s=9.067 protoc_build_s=3.209 protoc_generate_s=0.013 protoc_compile_generated_s=1.893 protoc_compile_user_s=1.250 protoc_link_s=0.053
+generated_lines fields=100 ctpb=0 protoc=6369
+=== footprint (stripped, exact section sizes) ===
+footprint fields=5 arm=ctpb file_bytes=18768 text_bytes=5891 rodata_bytes=280 data_bytes=24
+footprint fields=5 arm=protoc file_bytes=23288 text_bytes=4328 rodata_bytes=538 data_bytes=160
+footprint fields=25 arm=ctpb file_bytes=26960 text_bytes=13315 rodata_bytes=632 data_bytes=24
+footprint fields=25 arm=protoc file_bytes=27464 text_bytes=10632 rodata_bytes=622 data_bytes=240
+footprint fields=100 arm=ctpb file_bytes=55632 text_bytes=40851 rodata_bytes=1984 data_bytes=24
+footprint fields=100 arm=protoc file_bytes=56456 text_bytes=35912 rodata_bytes=922 data_bytes=544
