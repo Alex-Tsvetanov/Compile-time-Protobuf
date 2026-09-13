@@ -330,3 +330,40 @@ paired, namely building protobuf against libc++ inside a reflection-capable imag
 Scope of this finding: one nested-message field, one schema, `int32` and `string` leaves, on
 this toolchain. It does not establish what happens with repeated, enum or `oneof` fields, and
 none of those was probed.
+
+
+## Verification of the compile-time refusal at `3bb63e3`, gate open
+
+`raw/refusal_verification_3bb63e3.txt`. Clean configure and build in a build directory
+**outside** the source tree, then `ctest`. Asked for by the writer, run on this host because
+the gate can only be open here.
+
+**`test_reflection_refusals`: Passed in 11.06 s, with the gate open.**
+
+    CTPB_HAS_P2996=1 | clang 21.0.0git bloomberg/clang-p2996 @ 2ea0a79fe | flags: -std=c++26 -freflection
+    PASS accept_flat: CTPB_HAS_P2996=1 accept_flat=ok
+    PASS refuse message-typed field ........... ctpb_reflection_path_cannot_synthesize_message_typed_or_unknown_field
+    PASS refuse repeated message-typed field .. same diagnostic
+    PASS refuse map field ..................... ctpb_reflection_path_cannot_synthesize_map_or_oneof_field
+    PASS refuse oneof ......................... same diagnostic
+
+Each refusal fired on **its own named diagnostic**, which is what distinguishes a refusal from
+a compile that merely failed. **Full suite: 13/13 passed, 0 failed.**
+
+**Two controls, run separately, because a passing test is not evidence that it can fail.**
+
+- **With the gate shut** (`-stdlib=libstdc++` added), the same script prints `CTPB_HAS_P2996=0`,
+  says so, and **exits 77** — `Skipped`, never `Passed`. This is the guard that was the whole
+  point: a refusal test that goes green on the fallback would have reproduced, one level up,
+  the defect this retake exists to fix.
+- `accept_flat.cpp` carries `#if !CTPB_HAS_P2996 → #error`, so the **positive** control cannot
+  pass on the fallback either. Both halves of the test are gate-bound.
+
+**And the external reviewer's mechanism is now confirmed by construction rather than inferred.**
+`tests/CMakeLists.txt:48-49` compiles and links `test_interop_protobuf` with
+`-stdlib=libstdc++`, so that test runs with the gate **shut**, by design and unconditionally.
+It prints `ALL INTEROP & GRPC TESTS PASSED` and **does not print `CTPB_HAS_P2996`** — so its
+green is fallback-path evidence and neither the test output nor the `ctest` summary says so.
+**Worth one line of code:** have it print its gate value, as `check_refusals.sh` does. A reader
+of `13/13 passed` currently cannot tell that one of the thirteen ran on the other path, which
+is the exact ambiguity that cost this project a campaign.
