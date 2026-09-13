@@ -285,3 +285,48 @@ governor change, and was deliberately left rather than set to a guessed value. T
 says so explicitly. So EPP was not "left by an incomplete restore"; it was left by an
 **uncaptured knob**, which is a different defect and the more instructive one — a restore can
 only be as complete as its capture.
+
+
+## Unasked-for, and it upgrades the external reviewer's finding rather than confirming it
+
+The writer relayed, as an FYI after the paper was accepted, that the interop suite links the
+distribution `libprotobuf`, which forces libstdc++, which closes the gate — so
+*"nested messages decode correctly"* is evidence for the C++20 path only, while the paper says
+the reflection path emits nested messages as `int`. **That is checkable here in two compiles,
+so it was checked.** `raw/nested_message_probe.txt`, `method/nested_type_probe.cpp`,
+`method/nested_wire_probe.cpp`.
+
+**1. The type claim is confirmed positively**, by three passing `static_assert`s rather than by
+reading an error message: on the reflection path with the gate open, `decltype(Outer{}.inner)`
+is **`std::int32_t`**, and is **not** `Inner`, for `message Outer { int32 id = 1; Inner inner
+= 2; string tag = 3; }`.
+
+**2. But it is not only a type infelicity — it reaches the wire.** Encoding
+`Outer{id=1, inner=7}` produces **`08 01 10 07`**. Tag `0x10` is field 2 **wire type 0, a
+varint**; protobuf requires **`0x12`, wire type 2, length-delimited** for a submessage. So any
+schema containing a nested message is **wire-incompatible on the reflection path**, which is a
+larger claim than the field's C++ type.
+
+**3. And nothing anywhere reports an error.** Given those bytes and that schema, `protoc
+--decode` exits **0** and prints
+
+    id: 1
+    2: 7
+
+decoding field 2 as an **unknown field** rather than as `inner`. The conformant encoding of the
+same value, `08 01 12 02 08 07`, prints `inner { a: 7 }`. So a conformant reader sees `Outer`
+with `id` set, **`inner` unset**, and one unknown field — **silent data loss, with a zero exit
+status on both sides.**
+
+**Why this matters beyond the correction already made.** "The reflection path emits nested
+messages as `int`" reads as an incompleteness. "Any message with a nested field encodes to
+bytes a conformant reader silently drops the field from" is a correctness defect, and it is the
+same shape as the thing this whole retake exists to fix: a gate that was closed, so the tests
+that would have caught it were never running on the path that has the defect. **The interop
+suite cannot catch this while it links the distribution `libprotobuf`** — that link is what
+closes the gate — so the fix and the test are the same piece of work as making protobuf 36.0.0
+paired, namely building protobuf against libc++ inside a reflection-capable image.
+
+Scope of this finding: one nested-message field, one schema, `int32` and `string` leaves, on
+this toolchain. It does not establish what happens with repeated, enum or `oneof` fields, and
+none of those was probed.
