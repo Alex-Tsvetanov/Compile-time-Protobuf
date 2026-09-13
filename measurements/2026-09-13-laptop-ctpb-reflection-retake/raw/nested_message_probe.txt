@@ -1,0 +1,38 @@
+=== 1. what type does the reflection path give a nested message field? ===
+$ clang++ -O3 -std=c++26 -freflection -I/workspace/include nested_type_probe.cpp && ./p2
+gate=1
+Outer.inner is int32_t, NOT Inner  -- sizeof(Outer)=32 sizeof(Inner)=32
+assigned o.inner = 7
+
+  three static_asserts passed, so this is a positive result and not a read of an error message:
+    is_same_v<decltype(Outer{}.inner), std::int32_t>   PASS
+    is_same_v<decltype(Outer{}.id),    std::int32_t>   PASS
+    !is_same_v<decltype(Outer{}.inner), Inner>         PASS
+
+=== 2. what does it put on the wire? ===
+$ clang++ -O3 -std=c++26 -freflection -I/workspace/include nested_wire_probe.cpp && ./p3
+gate=1  wire bytes (4): 08 01 10 07
+  Outer{id=1, inner=7}
+  field 1: 08 01          tag 0x08 = field 1, wire type 0 (varint), value 1      correct
+  field 2: 10 07          tag 0x10 = field 2, wire type 0 (varint), value 7
+                          protobuf requires 0x12 = field 2, wire type 2 (length-delimited)
+
+=== 3. what a conformant reader makes of it ===
+schema: message Inner { int32 a = 1; string b = 2; }
+        message Outer { int32 id = 1; Inner inner = 2; string tag = 3; }
+
+$ printf '\x08\x01\x10\x07' | protoc --decode=Outer --proto_path=. nested.proto
+id: 1
+2: 7
+protoc exit=0
+
+$ printf '\x08\x01\x12\x02\x08\x07' | protoc --decode=Outer --proto_path=. nested.proto
+id: 1
+inner {
+  a: 7
+}
+protoc exit=0
+
+  protoc ACCEPTS both and exits 0 for both. It decodes ctpb's field 2 as an UNKNOWN field
+  (`2: 7`), not as `inner`. So a conformant reader sees Outer with id=1, `inner` UNSET, and
+  one unknown field -- data loss with no diagnostic on either side.

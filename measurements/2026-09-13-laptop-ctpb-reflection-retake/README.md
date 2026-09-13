@@ -286,3 +286,85 @@ governor change, and was deliberately left rather than set to a guessed value. T
 says so explicitly. So EPP was not "left by an incomplete restore"; it was left by an
 **uncaptured knob**, which is a different defect and the more instructive one — a restore can
 only be as complete as its capture.
+
+
+## Unasked-for, and it upgrades the external reviewer's finding rather than confirming it
+
+The writer relayed, as an FYI after the paper was accepted, that the interop suite links the
+distribution `libprotobuf`, which forces libstdc++, which closes the gate — so
+*"nested messages decode correctly"* is evidence for the C++20 path only, while the paper says
+the reflection path emits nested messages as `int`. **That is checkable here in two compiles,
+so it was checked.** `raw/nested_message_probe.txt`, `method/nested_type_probe.cpp`,
+`method/nested_wire_probe.cpp`.
+
+**1. The type claim is confirmed positively**, by three passing `static_assert`s rather than by
+reading an error message: on the reflection path with the gate open, `decltype(Outer{}.inner)`
+is **`std::int32_t`**, and is **not** `Inner`, for `message Outer { int32 id = 1; Inner inner
+= 2; string tag = 3; }`.
+
+**2. But it is not only a type infelicity — it reaches the wire.** Encoding
+`Outer{id=1, inner=7}` produces **`08 01 10 07`**. Tag `0x10` is field 2 **wire type 0, a
+varint**; protobuf requires **`0x12`, wire type 2, length-delimited** for a submessage. So any
+schema containing a nested message is **wire-incompatible on the reflection path**, which is a
+larger claim than the field's C++ type.
+
+**3. And nothing anywhere reports an error.** Given those bytes and that schema, `protoc
+--decode` exits **0** and prints
+
+    id: 1
+    2: 7
+
+decoding field 2 as an **unknown field** rather than as `inner`. The conformant encoding of the
+same value, `08 01 12 02 08 07`, prints `inner { a: 7 }`. So a conformant reader sees `Outer`
+with `id` set, **`inner` unset**, and one unknown field — **silent data loss, with a zero exit
+status on both sides.**
+
+**Why this matters beyond the correction already made.** "The reflection path emits nested
+messages as `int`" reads as an incompleteness. "Any message with a nested field encodes to
+bytes a conformant reader silently drops the field from" is a correctness defect, and it is the
+same shape as the thing this whole retake exists to fix: a gate that was closed, so the tests
+that would have caught it were never running on the path that has the defect. **The interop
+suite cannot catch this while it links the distribution `libprotobuf`** — that link is what
+closes the gate — so the fix and the test are the same piece of work as making protobuf 36.0.0
+paired, namely building protobuf against libc++ inside a reflection-capable image.
+
+Scope of this finding: one nested-message field, one schema, `int32` and `string` leaves, on
+this toolchain. It does not establish what happens with repeated, enum or `oneof` fields, and
+none of those was probed.
+
+
+## Verification of the compile-time refusal at `3bb63e3`, gate open
+
+`raw/refusal_verification_3bb63e3.txt`. Clean configure and build in a build directory
+**outside** the source tree, then `ctest`. Asked for by the writer, run on this host because
+the gate can only be open here.
+
+**`test_reflection_refusals`: Passed in 11.06 s, with the gate open.**
+
+    CTPB_HAS_P2996=1 | clang 21.0.0git bloomberg/clang-p2996 @ 2ea0a79fe | flags: -std=c++26 -freflection
+    PASS accept_flat: CTPB_HAS_P2996=1 accept_flat=ok
+    PASS refuse message-typed field ........... ctpb_reflection_path_cannot_synthesize_message_typed_or_unknown_field
+    PASS refuse repeated message-typed field .. same diagnostic
+    PASS refuse map field ..................... ctpb_reflection_path_cannot_synthesize_map_or_oneof_field
+    PASS refuse oneof ......................... same diagnostic
+
+Each refusal fired on **its own named diagnostic**, which is what distinguishes a refusal from
+a compile that merely failed. **Full suite: 13/13 passed, 0 failed.**
+
+**Two controls, run separately, because a passing test is not evidence that it can fail.**
+
+- **With the gate shut** (`-stdlib=libstdc++` added), the same script prints `CTPB_HAS_P2996=0`,
+  says so, and **exits 77** — `Skipped`, never `Passed`. This is the guard that was the whole
+  point: a refusal test that goes green on the fallback would have reproduced, one level up,
+  the defect this retake exists to fix.
+- `accept_flat.cpp` carries `#if !CTPB_HAS_P2996 → #error`, so the **positive** control cannot
+  pass on the fallback either. Both halves of the test are gate-bound.
+
+**And the external reviewer's mechanism is now confirmed by construction rather than inferred.**
+`tests/CMakeLists.txt:48-49` compiles and links `test_interop_protobuf` with
+`-stdlib=libstdc++`, so that test runs with the gate **shut**, by design and unconditionally.
+It prints `ALL INTEROP & GRPC TESTS PASSED` and **does not print `CTPB_HAS_P2996`** — so its
+green is fallback-path evidence and neither the test output nor the `ctest` summary says so.
+**Worth one line of code:** have it print its gate value, as `check_refusals.sh` does. A reader
+of `13/13 passed` currently cannot tell that one of the thirteen ran on the other path, which
+is the exact ambiguity that cost this project a campaign.

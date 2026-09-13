@@ -1,0 +1,113 @@
+########## clean configure, build dir OUTSIDE the source tree ##########
+-- Performing Test CTPB_HAS_FREFLECTION_FLAG
+-- Performing Test CTPB_HAS_FREFLECTION_FLAG - Success
+-- Checking for module 'protobuf'
+--   Found protobuf, version 3.21.12
+-- Protobuf found via PkgConfig: building test_interop_protobuf
+-- Configuring done (0.3s)
+-- Generating done (0.0s)
+-- Build files have been written to: /tmp/b
+CONFIGURE_EXIT=0
+
+########## build ##########
+[21/32] Linking CXX executable benchmarks/bench_runtime
+[22/32] Building CXX object tests/CMakeFiles/test_wire_edge_cases.dir/test_wire_edge_cases.cpp.o
+[23/32] Linking CXX executable tests/test_nested
+[24/32] Linking CXX executable tests/test_wire_edge_cases
+[25/32] Building CXX object benchmarks/CMakeFiles/bench_compile_time.dir/bench_compile_time.cpp.o
+[26/32] Linking CXX executable benchmarks/bench_compile_time
+[27/32] Building CXX object tests/CMakeFiles/test_interop_protobuf.dir/test_interop_protobuf.cpp.o
+[28/32] Linking CXX executable tests/test_interop_protobuf
+[29/32] Building CXX object tests/CMakeFiles/test_view.dir/test_view.cpp.o
+[30/32] Linking CXX executable tests/test_view
+[31/32] Building CXX object tests/CMakeFiles/test_view_regressions.dir/test_view_regressions.cpp.o
+[32/32] Linking CXX executable tests/test_view_regressions
+BUILD_EXIT=0
+
+########## ctest -R test_reflection_refusals -V ##########
+Internal ctest changing into directory: /tmp/b
+UpdateCTestConfiguration  from :/tmp/b/DartConfiguration.tcl
+UpdateCTestConfiguration  from :/tmp/b/DartConfiguration.tcl
+Test project /tmp/b
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 13
+    Start 13: test_reflection_refusals
+
+13: Test command: /usr/bin/bash "/workspace/tests/negative/check_refusals.sh" "/usr/local/bin/clang++" "/workspace/include" "/tmp/b/tests/negative" "-std=c++26" "-freflection"
+13: Working Directory: /tmp/b/tests
+13: Test timeout computed to be: 10000000
+13: CTPB_HAS_P2996=1 | clang version 21.0.0git (https://github.com/bloomberg/clang-p2996.git 2ea0a79fe7bb5f6fdb8c687ba0e21ab63696e7f7) | flags: -std=c++26 -freflection
+13: PASS accept_flat: CTPB_HAS_P2996=1 accept_flat=ok
+13: PASS refuse message-typed field: /workspace/include/ctpb/reflection.hpp:1133:13: note: non-constexpr function 'ctpb_reflection_path_cannot_synthesize_message_typed_or_unknown_field' cannot be used in a constant expression
+13: PASS refuse repeated message-typed field: /workspace/include/ctpb/reflection.hpp:1133:13: note: non-constexpr function 'ctpb_reflection_path_cannot_synthesize_message_typed_or_unknown_field' cannot be used in a constant expression
+13: PASS refuse map field: /workspace/include/ctpb/reflection.hpp:1128:9: note: non-constexpr function 'ctpb_reflection_path_cannot_synthesize_map_or_oneof_field' cannot be used in a constant expression
+13: PASS refuse oneof: /workspace/include/ctpb/reflection.hpp:1128:9: note: non-constexpr function 'ctpb_reflection_path_cannot_synthesize_map_or_oneof_field' cannot be used in a constant expression
+1/1 Test #13: test_reflection_refusals .........   Passed   11.06 sec
+
+The following tests passed:
+	test_reflection_refusals
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =  11.06 sec
+CTEST_TARGETED_EXIT=0
+
+########## full ctest summary ##########
+Internal ctest changing into directory: /tmp/b
+Test project /tmp/b
+      Start  1: test_lexer
+ 1/13 Test  #1: test_lexer .......................   Passed    0.00 sec
+      Start  2: test_parser
+ 2/13 Test  #2: test_parser ......................   Passed    0.00 sec
+      Start  3: test_encode_decode
+ 3/13 Test  #3: test_encode_decode ...............   Passed    0.00 sec
+      Start  4: test_roundtrip
+ 4/13 Test  #4: test_roundtrip ...................   Passed    0.00 sec
+      Start  5: test_nested
+ 5/13 Test  #5: test_nested ......................   Passed    0.00 sec
+      Start  6: test_oneof
+ 6/13 Test  #6: test_oneof .......................   Passed    0.00 sec
+      Start  7: test_maps
+ 7/13 Test  #7: test_maps ........................   Passed    0.00 sec
+      Start  8: test_wire_edge_cases
+ 8/13 Test  #8: test_wire_edge_cases .............   Passed    0.00 sec
+      Start  9: test_utf8_validation
+ 9/13 Test  #9: test_utf8_validation .............   Passed    0.00 sec
+      Start 10: test_view
+10/13 Test #10: test_view ........................   Passed    0.00 sec
+      Start 11: test_view_regressions
+11/13 Test #11: test_view_regressions ............   Passed    0.00 sec
+      Start 12: test_interop_protobuf
+12/13 Test #12: test_interop_protobuf ............   Passed    0.00 sec
+      Start 13: test_reflection_refusals
+13/13 Test #13: test_reflection_refusals .........   Passed   10.98 sec
+
+100% tests passed, 0 tests failed out of 13
+
+Total Test time (real) =  11.00 sec
+CTEST_FULL_EXIT=0
+
+########## controls run separately on this host ##########
+$ bash tests/negative/check_refusals.sh clang++ /workspace/include /tmp/wshut -std=c++26 -freflection -stdlib=libstdc++
+CTPB_HAS_P2996=0 | clang version 21.0.0git (bloomberg/clang-p2996 @ 2ea0a79fe) | flags: -std=c++26 -freflection -stdlib=libstdc++
+SKIPPED: the P2996 gate is shut, so there is no refusal to test on this path.
+EXIT=77  (77 = ctest Skipped)
+
+  So the guard holds on this host: with the gate shut the test SKIPS and cannot report Passed.
+
+$ grep -n 'CTPB_HAS_P2996' tests/negative/accept_flat.cpp
+9:#if !CTPB_HAS_P2996      -> #error, so the positive control cannot pass on the fallback either.
+
+$ grep -n 'stdlib' tests/CMakeLists.txt
+48:            target_compile_options(test_interop_protobuf PRIVATE -stdlib=libstdc++)
+49:            target_link_options(test_interop_protobuf PRIVATE -stdlib=libstdc++)
+
+  Confirms the external reviewer's mechanism by construction rather than by inference:
+  test_interop_protobuf is compiled with -stdlib=libstdc++, so it runs with the gate SHUT.
+  It printed "ALL INTEROP & GRPC TESTS PASSED" and does not print CTPB_HAS_P2996, so its
+  green says nothing about the reflection path and the log does not say so.
