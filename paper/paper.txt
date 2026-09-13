@@ -272,11 +272,14 @@ and differing only in wire encoding), float/double/bool
 map to their C++ equivalents, string to std::string,
 bytes to std::vector<std::byte>, and repeated
 
-T to std::vector<T>. The mapping is partial rather than
-complete: map and oneof members are parsed into the AST
-but are not yet synthesized, and a field whose type is an enum
-or a nested message is emitted as int rather than as a distinct
-type.
+T to std::vector<T>. The mapping covers the proto3
+scalars and enums and nothing else. An enum field is emitted
+as int, which is correct on the wire because proto3 encodes
+enums as varints. A message-typed field, a map, or a oneof
+is rejected at compile time rather than synthesized, because the
+representation available on this path would encode it incorrectly;
+the parser still accepts all three, and the compatibility path and
+the lazy views handle them.
 Beyond member generation, ctpb supplies direct dot-syntax
 field access (p.name) and non-intrusive ctpb::encode and
 ctpb::decode visitors that traverse the member descriptors
@@ -312,6 +315,8 @@ containing newer fields. Skipped fields are not retained for
 re-serialization.
 VII. E XPERIMENTAL E VALUATION
 
+the same command with -stdlib=libstdc++ closes it,
+because <meta> ships only with libc++. Trial 0 is excluded
 as a warm-up; all tables report the median and full range of
 the six retained trials. The results describe this host and these
 workloads, not performance across machines. Raw trial lines,
@@ -374,8 +379,6 @@ unit, and linking, all counted (Table II).
 The reflection implementation is the one measured: the P2996
 The ordering reverses with schema size. At 5 fields ctpb
 feature gate is verified open in the measured configuration, and builds faster than the generated path, by 25 fields it is already
-the same command with -stdlib=libstdc++ closes it, slower, and at 100 fields it costs 2.87× as much. The two
-because <meta> ships only with libc++. Trial 0 is excluded sides also scale differently rather than differing by a constant:
 
 TABLE II
 B UILD COST FROM . P R O T O TO LINKED PROGRAM , MEDIAN [ MIN , MAX ] OF
@@ -391,14 +394,16 @@ Ratio
 100
 9.05 [8.59, 9.14] 3.15 [3.12, 3.21] 2.87×
 
+for ctpb. That run shares neither compiler nor container with
+the table and establishes nothing on its own, but it is sufficient
 to say that the decoding result should not be read as a margin
 over Protocol Buffers in general. The encoding margin is not
 at risk from the same comparison, which encoded more slowly
 rather than faster.
 D. Binary Footprint
-TABLE IV
-B INARY FOOTPRINT AND GENERATED SOURCE , EXACT BYTES
 
+slower, and at 100 fields it costs 2.87× as much. The two
+sides also scale differently rather than differing by a constant:
 protoc itself never exceeds 0.015 s and the link 0.058 s, so the
 generated path’s growth is almost entirely the cost of compiling
 more generated code, which grows mildly, while ctpb’s growth
@@ -406,6 +411,8 @@ is constant evaluation of a longer schema, which does not.
 Removing the generator does not remove the work; it relocates
 it into the front end, where at this scale it is more expensive.
 
+TABLE IV
+B INARY FOOTPRINT AND GENERATED SOURCE , EXACT BYTES
 Metric
 ctpb
 Generated (dyn.) Generated (static)
@@ -431,8 +438,8 @@ For a single 3-field message, protoc emits 754 lines across
 We evaluated encoding and decoding on a 3-field (Table IV). The generated application linked dynamically is
 Person message with a 47-byte wire payload against full 1.46× larger as a file and the statically linked one 93.62×
 libprotobuf. The two arms are separate programs, because larger.
-The two rows point in opposite directions and the second is
 they cannot share one: <meta> ships only with libc++, while
+The two rows point in opposite directions and the second is
 the reference library is built against libstdc++ and does not the more informative. Measured as exact .text, ctpb’s own
 link against libc++. The timed loop is one header compiled code is 1.49× larger than the dynamically linked generated
 into both arms rather than two loops intended to match, both program’s, because that program’s encoder and decoder are not
@@ -442,140 +449,128 @@ both assert a correct round trip before timing. The arms are inside the binary, 
 alternated across five repetitions of twenty rounds each and shows is therefore not that ctpb generates less code, but
 the table reports the median and range over all 100 rounds. that it carries its serialization logic in the executable at a
 The two arms are verified to produce identical wire bytes; the size comparable to a small dynamic stub and two orders of
-magnitude below the bundled runtime. All file sizes exclude
 comparison is void otherwise.
+magnitude below the bundled runtime. All file sizes exclude
 dynamically linked system libraries; the ctpb sample has no
-Protocol Buffers runtime dependency but still links the system
 TABLE III
-C++ runtime. ELF page alignment gives the stripped-file metric
+Protocol Buffers runtime dependency but still links the system
 RUNTIME LATENCY, MEDIAN [ MIN , MAX ] OVER 100 ROUNDS , 47- BYTE
+C++ runtime. ELF page alignment gives the stripped-file metric
 PAYLOAD
 a resolution floor of about 4 KB, so the file rows are coarse
-for small changes.
 Operation
 ctpb (ns)
 libprotobuf (ns)
 Ratio
-C. Runtime Serialization Throughput
-
+for small changes.
 Encode
-Decode
-
 7.70 [7.10, 9.11] 36.97 [33.57, 41.37]
 4.80×
+C. Runtime Serialization Throughput
+
+Decode
+
 50.38 [45.33, 52.77] 70.39 [63.85, 77.37] 1.26–1.46×
 
-For this workload ctpb encodes 4.80× faster. Field sizes
-are known to the compiler, so the encoder allocates one exactly
-sized buffer through byte_size() and writes fields through
-raw pointers without reallocation or virtual dispatch. These
-results are limited to the message shape and allocation policy
-exercised here.
-Decoding is the narrower and the more fragile result, and
-is quoted as a range because five repetitions do not support a
-point estimate: the per-repetition ratio spans 1.26× to 1.46×.
-All reported ctpb measurements include UTF-8 validation for
-string fields. Two properties of the comparison bound how
-far it generalizes. The arms link different C++ runtimes, libc++
-and libstdc++, because neither builds the other way. More
-importantly the decode margin is specific to the 3.21.12 baseline:
-a single unpaired run of libprotobuf 36.0.0, built alone on
-the host toolchain because no ctpb arm exists there, decoded
-the same message in 48.9 ns against the 50.4 ns measured here
-for ctpb. That run shares neither compiler nor container with
-the table and establishes nothing on its own, but it is sufficient
-
 E. Wire Interoperability and Message Framing
-Correctness was assessed through dual-direction interoperability tests against libprotobuf 3.21.12 and the
-protoc code generator [1]. These tests link the distribution
-libprotobuf, which is built against libstdc++, and therefore
-compile the library’s C++20 compatibility path rather than the
-reflection path: on that path the members are declared by hand,
-so enum and nested-message fields carry their proper types. The
-reflection path synthesizes those two as int (Section V), and
-the nested and enum cases below are consequently evidence
-for the compatibility path only. The wire engine is shared by
-both paths; the type mapping is not. For the exercised cases,
-messages serialized by Google’s SerializeToString()
-decode through ctpb::decode<T>() across scalars, Zigzag
-integers, strings, enums, nested messages, bytes fields, and
-packed repeated scalars. In the reverse direction, buffers
-produced by ctpb::encode() parse through Google’s
-ParseFromArray(), with wire tags, varints, and length
-delimiters accepted by the reference parser. Packed repeated
-fields and bytes are included explicitly because both differ
-from the singular scalar path.
 
-X. C ONCLUSION
-The tests also cover the message framing gRPC uses on the
-wire [7], a one-byte compression flag followed by a four-byte
+Correctness was assessed through dual-direction interFor this workload ctpb encodes 4.80× faster. Field sizes
+are known to the compiler, so the encoder allocates one exactly operability tests against libprotobuf 3.21.12 and the
+sized buffer through byte_size() and writes fields through protoc code generator [1]. These tests link the distribution
+raw pointers without reallocation or virtual dispatch. These libprotobuf, which is built against libstdc++, and therefore
+results are limited to the message shape and allocation policy compile the library’s C++20 compatibility path rather than
+the reflection path: on that path the members are declared
+exercised here.
+Decoding is the narrower and the more fragile result, and by hand, so nested-message fields carry their proper types.
+is quoted as a range because five repetitions do not support a The nested-message cases below are consequently evidence
+point estimate: the per-repetition ratio spans 1.26× to 1.46×. for the compatibility path only; on the reflection path a
+All reported ctpb measurements include UTF-8 validation for schema containing a message-typed field does not compile
+string fields. Two properties of the comparison bound how (Section V). Enum fields behave identically on both paths,
+far it generalizes. The arms link different C++ runtimes, libc++ and a separate check against protoc confirms them on the
+and libstdc++, because neither builds the other way. More reflection path in both directions. For the exercised cases,
+importantly the decode margin is specific to the 3.21.12 baseline: messages serialized by Google’s SerializeToString()
+a single unpaired run of libprotobuf 36.0.0, built alone on decode through ctpb::decode<T>() across scalars, Zigzag
+the host toolchain because no ctpb arm exists there, decoded integers, strings, enums, nested messages, bytes fields, and
+the same message in 48.9 ns against the 50.4 ns measured here packed repeated scalars. In the reverse direction, buffers
+
+produced by ctpb::encode() parse through Google’s differential module that runs the existing bidirectional interoperParseFromArray(), with wire tags, varints, and length ability suite and wire-parity checks against each new toolchain
+delimiters accepted by the reference parser. Packed repeated to detect discrepancies introduced by compiler changes.
+fields and bytes are included explicitly because both differ
+X. C ONCLUSION
+from the singular scalar path.
 This paper presented ctpb, a header-only C++26 library that
-big-endian length. The test builds that framing around a ctpb- performs Protocol Buffers serialization without generated C++
-encoded payload, strips it again, and parses the result with source. By combining constexpr recursive-descent parsing
-libprotobuf. No gRPC library, channel, or server handler with P2996 static reflection, ctpb compiles .proto schemas
-takes part, so what is shown is payload and framing fidelity; directly into type-safe C++ structures in the compiler frontintegration with a gRPC runtime, and generation of service end. On one host, a 100-field synthetic schema is parsed in
-stubs, remain untested.
-7.487 µs, and the tested 47-byte Person workload encodes
-4.80× faster than libprotobuf 3.21.12 while including
-VIII. R ELATED W ORK
-UTF-8 validation, and the exercised cases pass bidirectional
-Prior C++ work has moved from template techniques to wire-format interoperability tests. The static-runtime generated
-constexpr evaluation and reflection; P2996 supplies the comparison is 93.62× larger as a file than the ctpb sample,
-type-synthesis facilities used here, and P1967 the standardized while the dynamic comparison is 1.46× larger; measured as
-resource inclusion [4], [5]. CTRE illustrates compile-time .text, however, ctpb carries more code than the dynamic
-processing of a domain-specific grammar [8]; ctpb applies stub and far less than the bundled runtime. The removed
-the same broad idea to proto3 parsing and schema-driven generator’s cost reappears in the front end, where at 100 fields it
-types. In serialization, reflect-cpp derives schemas from existing exceeds it. These results show that static reflection can remove
-C++ structs, whereas FlatBuffers and Cap’n Proto retain generated Protocol Buffers source for the evaluated schemas
-standalone compilers [2], [3], [9]. ctpb instead treats proto3 and toolchain while retaining tested wire-format interoperability.
-as the external schema authority while avoiding generated C++ The approach is aimed at teams for whom the generator step
+The tests also cover the message framing gRPC uses on the
+performs
+Protocol Buffers serialization without generated C++
+wire [7], a one-byte compression flag followed by a four-byte
 source.
-is itself the cost: header-only library authors, embedded and
+By
+combining constexpr recursive-descent parsing
+big-endian length. The test builds that framing around a ctpbencoded payload, strips it again, and parses the result with with P2996 static reflection, ctpb compiles .proto schemas
+libprotobuf. No gRPC library, channel, or server handler directly into type-safe C++ structures in the compiler fronttakes part, so what is shown is payload and framing fidelity; end. On one host, a 100-field synthetic schema is parsed in
+integration with a gRPC runtime, and generation of service 7.487 µs, and the tested 47-byte Person workload encodes
+4.80× faster than libprotobuf 3.21.12 while including
+stubs, remain untested.
+UTF-8 validation, and the exercised cases pass bidirectional
+VIII. R ELATED W ORK
+wire-format interoperability tests. The static-runtime generated
+Prior C++ work has moved from template techniques to comparison is 93.62× larger as a file than the ctpb sample,
+constexpr evaluation and reflection; P2996 supplies the while the dynamic comparison is 1.46× larger; measured as
+type-synthesis facilities used here, and P1967 the standardized .text, however, ctpb carries more code than the dynamic
+resource inclusion [4], [5]. CTRE illustrates compile-time stub and far less than the bundled runtime. The removed
+processing of a domain-specific grammar [8]; ctpb applies generator’s cost reappears in the front end, where at 100 fields it
+the same broad idea to proto3 parsing and schema-driven exceeds it. These results show that static reflection can remove
+types. In serialization, reflect-cpp derives schemas from existing generated Protocol Buffers source for the evaluated schemas
+C++ structs, whereas FlatBuffers and Cap’n Proto retain and toolchain while retaining tested wire-format interoperability.
+standalone compilers [2], [3], [9]. ctpb instead treats proto3 The approach is aimed at teams for whom the generator step
+as the external schema authority while avoiding generated C++ is itself the cost: header-only library authors, embedded and
+source.
 firmware builds without a host-side protoc, and monorepos
-IX. L IMITATIONS AND F UTURE W ORK
 contending with generated-source churn.
-The present work has five limitations. First, the evaluated
+IX. L IMITATIONS AND F UTURE W ORK
 ACKNOWLEDGMENT
+The present work has five limitations. First, the evaluated
 implementation requires an experimental Clang P2996 branch,
-so deployment depends on the compiler revision recorded with
 The author would like to thank the scientific research sector
-the benchmark artifact. Second, the initial release covers wire of the Technical University of Sofia for financial support for
-serialization only: gRPC service stubs are out of scope, and publishing the present paper.
-integration with a gRPC runtime is untested, Section VII-E
+so deployment depends on the compiler revision recorded with of the Technical University of Sofia for financial support for
+the benchmark artifact; on that path, type synthesis covers publishing the present paper.
+scalar and enum fields only and rejects message-typed, map
 R EFERENCES
-covering the framing alone. Third, constant evaluation is
-bounded first by the compiler’s step limit rather than by [1] Google LLC, “Protocol buffers: Language guide (proto3) and encoding
-specification.” https://protobuf.dev/programming-guides/proto3/, 2025. Acmemory: a single message of 317 int32 fields is synthesized
+and oneof fields at compile time. Second, the initial release
+covers wire serialization only: gRPC service stubs are out [1] Google LLC, “Protocol buffers: Language guide (proto3) and encoding
+specification.” https://protobuf.dev/programming-guides/proto3/, 2025. Acof scope, and integration with a gRPC runtime is untested,
 cessed: 2026-08-20.
-under Clang’s default budget, while 318 fail. The bound is [2] W. van Oortmerssen, “FlatBuffers: Memory efficient serialization library.”
-a flag rather than a wall, since raising the budget compiles
+Section VII-E covering the framing alone. Third, constant [2] W. van Oortmerssen, “FlatBuffers: Memory efficient serialization library.”
 https://google.github.io/flatbuffers/, 2014. Google Open Source.
-3,200 fields without reaching a ceiling, but ctpb does not [3] K. Varda, “Cap’n proto: Insanely fast data interchange format and RPC
+evaluation is bounded first by the compiler’s step limit rather
+than by memory: a single message of 317 int32 fields is [3] K. Varda, “Cap’n proto: Insanely fast data interchange format and RPC
 system.” https://capnproto.org/, 2013. Sandstorm.io.
-raise the default. Fourth, the decoding margin is specific to the [4] W. Childers, P. Dimov, D. Katz, B. Revzin, A. Sutton, F. Vali, and
-libprotobuf 3.21.12 baseline; an unpaired run of 36.0.0
+synthesized under Clang’s default budget, while 318 fail. The [4] W. Childers, P. Dimov, D. Katz, B. Revzin, A. Sutton, F. Vali, and
 D. Vandevoorde, “Reflection for C++26 (ISO/IEC JTC1/SC22/WG21
+bound is a flag rather than a wall, since raising the budget
 P2996R13).” https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2025/
-decoded the same message faster than the figure measured
+compiles 3,200 fields without reaching a ceiling, but ctpb
 p2996r13.html, 2025. ISO WG21 Standard Proposal.
-here for ctpb, so decoding is not claimed as a lead over [5] J. Meneide, “#embed - a scannable, tooling-friendly binary resource
-Protocol Buffers in general. Finally, the performance data
+does not raise the default. Fourth, the decoding margin is [5] J. Meneide, “#embed - a scannable, tooling-friendly binary resource
 inclusion mechanism (ISO/IEC JTC1/SC22/WG21 P1967R14).” https://
+specific to the libprotobuf 3.21.12 baseline; an unpaired
 www.open-std.org/jtc1/sc22/wg21/docs/papers/2025/p1967r14.html, 2025.
-comes from one host and a limited set of synthetic schemas
+run of 36.0.0 decoded the same message faster than the figure
 ISO WG21 Standard Proposal.
-and one 47-byte Person message. Future work targets the [6] A. I. Tsvetanov, “ctpb: Compile-time protobuf library via C++26 static reWell-Known Types (Timestamp, Duration), compile-time
-flection.” https://github.com/Alex-Tsvetanov/Compile-time-Protobuf, 2026.
+measured here for ctpb, so decoding is not claimed as a lead [6] A. I. Tsvetanov, “ctpb: Compile-time protobuf library via C++26 static reflection.” https://github.com/Alex-Tsvetanov/Compile-time-Protobuf, 2026.
+over Protocol Buffers in general. Finally, the performance data
 Open Source Publication Repository.
-JSON mapping, broader workload coverage including larger
+comes from one host and a limited set of synthetic schemas
 [7] gRPC Authors, “grpc: A high performance, open source universal RPC
-and nested messages, and asynchronous stub synthesis. Two
-framework and wire protocol specification.” https://grpc.io/docs/what-isfurther directions are a hybrid mode that falls back to protocgrpc/core-concepts/, 2025. Cloud Native Computing Foundation.
-generated types where no P2996 toolchain is available, and a [8] H. Dusíková, “CTRE: Compile time regular expression for C++.” https://
+and one 47-byte Person message. Future work targets the
+framework and wire protocol specification.” https://grpc.io/docs/what-isgrpc/core-concepts/, 2025. Cloud Native Computing Foundation.
+Well-Known Types (Timestamp, Duration), compile-time
+JSON mapping, broader workload coverage including larger [8] H. Dusíková, “CTRE: Compile time regular expression for C++.” https://
 github.com/hanickadot/compile-time-regular-expressions, 2020. Accessed:
-differential module that runs the existing bidirectional interoper2026-08-27.
-ability suite and wire-parity checks against each new toolchain [9] G. Vormayr, “reflect-cpp: Fast C++20 reflection and serialization library.”
+and nested messages, and asynchronous stub synthesis. Two
+2026-08-27.
+further directions are a hybrid mode that falls back to protoc- [9] G. Vormayr, “reflect-cpp: Fast C++20 reflection and serialization library.”
 https://github.com/getml/reflect-cpp, 2024. Accessed: 2026-08-20.
-to detect discrepancies introduced by compiler changes.
+generated types where no P2996 toolchain is available, and a
 
 

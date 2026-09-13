@@ -48,6 +48,15 @@ reflection feature-test macro of its own, and `<meta>` ships only in that
 toolchain's libc++ tree, so a build that passes `-stdlib=libstdc++` silently gets
 the C++20 fallback instead. Define `CTPB_HAS_P2996` yourself to override.
 
+**What the reflection path refuses.** `define_message` synthesizes proto3 scalar
+and enum fields only. A message-typed field, a `map`, or a `oneof` fails the build
+with a diagnostic naming `ctpb_reflection_path_cannot_synthesize_...`. Before that
+refusal those schemas compiled and lost data silently: a nested message encoded as a
+varint that `protoc` drops as an unknown field, and map and oneof members were never
+synthesized at all. Use the C++20 path (hand-declared members) or `decode_view` for
+such schemas. `test_reflection_refusals` checks every refusal, and reports *Skipped*,
+not *Passed*, when the P2996 gate is shut.
+
 **`decode_into` vs `decode`.** On the clang-p2996 branch, returning a
 reflection-generated message *by value* crashes the compiler once the message
 holds a repeated field (an assertion in `setPointOfInstantiation`), and wrapping
