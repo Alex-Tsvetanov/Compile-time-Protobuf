@@ -240,3 +240,48 @@ occurrences.
 performance`, so the timed work did run pinned) and nothing recording a restore — which is
 consistent with the live state I found six days later, and with the paper having dropped the
 restore clause.
+
+
+## Two more corrections, and the second one retires a story we both told
+
+**The restore artifacts are FOUR, not three, and not one.** The fourth is
+`2026-09-06-laptop-ctpb-rerun/host-state/host-state-3b-restored.txt`, which says
+`restore verification: ok` rather than the `AFTER RESTORE … verification=ok` the other three
+share.
+
+**The sharper form of the lesson is the writer's, not mine.** My own untruncated
+`grep -rln` had that file in its output; I then classified from the truncated `-n` view I had
+already looked at and said three. **The fix for a truncated search is to re-run it untruncated
+and count — not to raise the number until it stops looking wrong.** One, then three, both
+wrong, by the same mechanism at two different stages.
+
+**And the pinned-state story is wrong, mine and the writer's alike.** We both said the machine
+had been sitting in the 2026-09-07 pinned state because nothing restored it. **The host
+rebooted on 2026-09-12 at 13:32**, six days after that sitting and one day before this one, so
+nothing from 7 September can be standing. Checked rather than assumed:
+`cpupower.service` is enabled and ran, but `/etc/default/cpupower-service.conf` is entirely
+comments, so it sets no governor, no EPP and no frequency and its script takes no branch;
+`/proc/cmdline` carries no `cpufreq.default_governor`; the driver is `amd-pstate-epp` in
+`active` mode; and no `tlp`, `tuned`, `power-profiles-daemon` or `auto-cpufreq` is present.
+**So `performance` was applied during the current uptime by something the journal does not
+record, and this record does not guess at what.** Details in
+`raw/environment-ADDENDUM.txt`; `raw/environment.txt` is left byte-identical because it is a
+capture, and its readings were never in question — only two interpretive comment lines in it.
+
+**What survives:** every measurement here ran at `governor=performance` on all 16 CPUs, which
+is the state a campaign wants, and this sitting changed nothing. The 2026-09-07 retake still
+has no restore artifact, so the paper's dropped restore clause stands on its own evidence.
+**What is retired:** the inference from a live reading back to a sitting six days earlier. The
+2026-09-06 record we were both quoting already contained the sentence that should have stopped
+it — *"a reboot resets it"*, written about EPP in the very file whose wording hid it from my
+search.
+
+**One correction to the writer's reading of my fourth file.**
+`-ctpb-decode-experiments/raw/host-state.txt` is not an incomplete restore. Its own baseline
+line reads `epp=performance` **before** the pin, and its restore returned EPP to exactly that,
+so it restored what it captured. The EPP residue originates one sitting earlier, in
+`-ctpb-rerun`, where EPP was **never captured**, ended at `performance` as a by-product of the
+governor change, and was deliberately left rather than set to a guessed value. That record
+says so explicitly. So EPP was not "left by an incomplete restore"; it was left by an
+**uncaptured knob**, which is a different defect and the more instructive one — a restore can
+only be as complete as its capture.

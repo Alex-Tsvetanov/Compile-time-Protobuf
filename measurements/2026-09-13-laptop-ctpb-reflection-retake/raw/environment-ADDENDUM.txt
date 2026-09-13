@@ -1,0 +1,33 @@
+# ADDENDUM to environment.txt — 2026-09-13, same sitting, written after checking
+#
+# environment.txt is left byte-identical because it is a capture. Its READINGS are
+# correct. Two of its comment lines are my interpretation and they are WRONG:
+#
+#   "# This is the PINNED state, not the host baseline."
+#   "# ... Nothing restored it."
+#
+# Both assert that what I found is the 2026-09-07 pin still standing. It cannot be.
+#
+#   uptime -s                 2026-09-12 13:32:09      -- the host REBOOTED after 7 September
+#   journalctl -b -u cpupower  Starting ... Finished    -- applied nothing: see below
+#   /etc/default/cpupower-service.conf                 -- every line is a comment, so
+#                                                         FREQ/GOVERNOR/EPP are all unset and
+#                                                         /usr/lib/systemd/scripts/cpupower
+#                                                         takes no branch
+#   /proc/cmdline             no cpufreq.default_governor, no amd_pstate override
+#   scaling_driver            amd-pstate-epp, amd_pstate/status = active
+#   active power services     cpupower.service (exited, no-op) and upower.service only;
+#                             no tlp, no tuned, no power-profiles-daemon, no auto-cpufreq
+#
+# So: governor=performance and epp=performance were applied DURING THE CURRENT UPTIME,
+# after the 2026-09-12 13:32 boot, by something the journal does not record -- most likely
+# a manual `cpupower frequency-set -g performance`. The cause is NOT evidenced and this
+# addendum does not guess at one.
+#
+# What is unaffected: every measurement in this record ran with governor=performance on all
+# 16 CPUs, which is the state a campaign wants, and nothing in this sitting changed it.
+# What is retired: any claim that the machine has been sitting in the 7 September pinned
+# state. A reboot intervened. The 2026-09-06 record at
+# measurements/2026-09-06-laptop-ctpb-rerun/host-state/host-state-3b-restored.txt already
+# said "a reboot resets it" about EPP, which is the sentence that should have stopped both
+# me and the writer from telling this story.
