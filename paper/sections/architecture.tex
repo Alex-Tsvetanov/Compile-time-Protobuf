@@ -2,27 +2,32 @@
 
 \texttt{ctpb} is organized as a three-stage pipeline executing entirely within the compiler front-end prior to code emission.
 
-\textbf{Stage 1, source embedding.} The user supplies a \texttt{.proto} path as a template argument. Under C++26 this is loaded via \texttt{\#embed} into a contiguous immutable byte buffer, mapped to a zero-copy \texttt{std::string\_view}.
+\textbf{Stage 1, source ingestion.} The schema text is supplied as a non-type template argument and held in immutable compile-time storage, mapped to a zero-copy \texttt{std::string\_view}. \texttt{\#embed} is the standardized route from a \texttt{.proto} file to that storage without a generated source file; the evaluated implementation takes the text itself, so the file-reading step is not exercised here.
 
 \textbf{Stage 2, \texttt{constexpr} lexing and AST construction.} The \texttt{ctpb::parser} is instantiated inside a \texttt{consteval} context, tokenizing the grammar on demand without backtracking and emitting an immutable AST (\texttt{ctpb::ast::file}) holding messages, fields, enums, oneofs, maps, reserved regions, and options.
 
-\textbf{Stage 3, reflection splicing and type synthesis.} \texttt{define\_message} looks up the requested entity in the AST and, via P2996 \texttt{define\_aggregate}, injects a struct whose members match each field, together with \texttt{encode()} and \texttt{decode()} visitors, directly into the active translation unit.
+\textbf{Stage 3, reflection splicing and type synthesis.} \texttt{define\_message} looks up the requested entity in the AST and, via P2996 \texttt{define\_aggregate}, injects a struct whose members match each field directly into the active translation unit. Generic \texttt{ctpb::encode} and \texttt{ctpb::decode} visitors use the resulting metadata.
 
 The resulting public interface requires no macros and no build step:
 
 \begin{lstlisting}[language=ModernC++, caption={User API in \texttt{ctpb}}]
 #include <ctpb/ctpb.hpp>
 
+inline constexpr ctpb::fixed_string person_proto = R"(
+  syntax = "proto3"; package tutorial;
+  message Person { string name = 1; int32 id = 2; }
+)";
+
 // Compile-time schema synthesis
-consteval { ctpb::define_message<"person.proto", "tutorial.Person">(); }
-using Person = ctpb::message_t<"person.proto", "tutorial.Person">;
+consteval { ctpb::define_message<person_proto, "Person">(); }
+using Person = ctpb::message_t<person_proto, "Person">;
 
 Person p{};
 p.name = "Alex I. Tsvetanov";
 p.id = 42;
 
 std::vector<std::byte> wire = ctpb::encode(p);
-auto decoded = ctpb::decode<Person>(wire);
+auto decoded = ctpb::decode<Person>(wire); // std::expected<Person, ctpb::wire::decode_error>
 \end{lstlisting}
 
-Every field offset, wire tag, and type check is resolved at compile time with zero runtime dispatch.
+Field offsets, wire tags, and type checks are resolved at compile time; runtime operations use the generated metadata rather than a reflection registry.

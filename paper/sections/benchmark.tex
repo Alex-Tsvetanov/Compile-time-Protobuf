@@ -1,132 +1,85 @@
 \section{Experimental Evaluation}
 
-Every figure in this section comes from one host in one pinned sitting on 7~September 2026: an AMD Ryzen~7 5800H, 16 logical CPUs, Linux 7.2.3, clock pinned to 3.2\,GHz with boost disabled and the setting verified by read-back against the state captured before pinning. The timed work ran in the project's \texttt{ctpb-dev:2026-09-06} image built from the repository's own \texttt{Dockerfile} \cite{ctpb2026}, compiled with Clang 21.0 (P2996 branch) under \texttt{-std=c++26 -freflection -O3} against Protobuf 3.21.12. Every raw trial line, the clock samples taken during the run and the exact benchmark script are published with the paper.
-% src: measurements/2026-09-07-laptop-p5-retake/README.md conditions table (host, image,
-%   toolchain, clock: 41 samples across 16 CPUs, median 3200 MHz, min 3159, spread 0.97%);
-%   raw/host-state.txt (BEFORE PIN / DURING / AFTER RESTORE, verification=ok against the
-%   captured baseline rather than a hardcoded value)
+All results in this section come from one sitting on 7~September 2026: an AMD Ryzen~7 5800H with 16 logical CPUs running Linux 7.2.3. Before the run, the scaling governor and energy-performance preference of every CPU were set to \texttt{performance}; afterwards both were restored and verified against the state captured beforehand. No frequency samples accompany this sitting's record. The timed work ran in a container image built from the project's own recipe \cite{ctpb2026}, using the experimental Clang~21 branch that implements P2996, \texttt{-std=c++26 -freflection -O3}, and Protobuf 3.21.12.
 
-The numbers below replace those of the previous version rather than extending them, and they have been replaced twice. The first published table was taken on a different machine, an AMD Ryzen~5 3600, under a harness this repository has since repudiated for three named defects, any one of which could account for the whole reported margin. The table that replaced it was re-taken here on 6~September and is itself superseded, because \texttt{ctpb} did not then validate UTF-8 and the campaign driver was found to exit successfully having measured nothing: it built against an image carrying no protobuf, mounted the tree where no script looked for it, and reported failure to stderr while returning success. Nothing in that set is adjusted forward. The absolutes are re-taken, because thermal state moves them between sittings by more than the effects under test, and only ratios and within-run comparisons carry across. That harness also decoded into a freshly constructed destination on the \texttt{ctpb} arm while reusing one on the reference arm, charging \texttt{ctpb} a heap allocation per iteration that its competitor did not pay. Re-measured on one host with that asymmetry removed, the encode margin roughly doubles and the decode margin falls well below what was previously printed. No \texttt{ctpb} code changed between the two campaigns; the instrument did.
-% src: rerun_all.sh (the repudiation and the three defects); measurements/2026-09-07-laptop-p5-retake/README.md
-%   "The driver this ran through had to be repaired first" (three compounding faults, repaired at
-%   be4497e and verified by breaking it) and "Do not reconcile these absolutes with the published
-%   ones" (only ratios and within-run comparisons transfer between sittings on this host)
-%   "What moved" and "Two instrument defects found and fixed before these numbers were read";
-%   method/diff-from-committed-eval.txt is the exact change from the committed harness
-
-A single sitting on one host is one sitting on one host. These cells carry no validity gates, because the scripts that produce them have none, and nothing here was accepted or refused by a rule. What the campaign buys is that every ratio comes from one binary per arm measured minutes apart under a clock that was held and checked, which the table it replaces did not have.
-% src: README.md conditions table, gates row ("none -- these scripts have no validity gates,
-%   so nothing was accepted or refused")
+Each \texttt{ctpb}--reference pair was measured independently, so the full-library and lite-library comparisons have separate \texttt{ctpb} baselines. Trial~0 is excluded as a warm-up; all tables report the median and full range of the six retained trials. The results describe this host and these workloads, not performance across machines. Raw trial lines, the environment record, and the scripts that produced them are published with the artifact \cite{ctpb2026}.
 
 \subsection{Compile-Time Schema Parsing}
-We measured the \texttt{constexpr} parser on three schemas scaled by field count alone (5, 25, and 100 \texttt{int32} fields), each over $20{,}000$ iterations after a $2{,}000$-iteration warmup, across seven trials (Table~\ref{tab:compile_time_results}). Trial~0 is excluded as warm-up throughout this section and the exclusion is declared because it is not cosmetic: on the runtime arms the reference implementation runs 4 to 6\,\% slow on trial~0 while \texttt{ctpb} moves by under $0.4\,\%$, so counting it would flatter \texttt{ctpb}. Spreads are the full range of the six retained trials rather than a standard deviation, because six points do not support one.
+We measured the \texttt{constexpr} parser on synthetic schemas scaled by field count alone (5, 25, and 100 \texttt{int32} fields), each over $20{,}000$ iterations after a $2{,}000$-iteration warm-up, across seven trials (Table~\ref{tab:compile_time_results}). The parser is compiled as ordinary optimized code and timed at run time, so these figures bound the per-schema front-end work rather than measuring it inside constant evaluation.
 
 \begin{table}[ht]
 \centering
-\caption{Compile-Time Parser Latency, median and range of six trials}
+\caption{Parser latency, compiled as ordinary code, median and range of six trials}
 \label{tab:compile_time_results}
 \renewcommand{\arraystretch}{1.15}
 \setlength{\tabcolsep}{3pt}
 \scriptsize
-\begin{tabular}{|l|c|c|c|}
+\begin{tabular}{lccc}
 \hline
-\textbf{Schema Size} & \textbf{Fields} & \textbf{Latency / Parse} & \textbf{Throughput} \\ \hline
-Small & 5 & $0.492\,\mu\text{s}$ [$0.489$, $0.500$] & $2{,}032{,}520\,\text{parses/s}$ \\ \hline
-Medium & 25 & $1.938\,\mu\text{s}$ [$1.920$, $1.968$] & $515{,}996\,\text{parses/s}$ \\ \hline
-Large & 100 & $7.239\,\mu\text{s}$ [$7.227$, $7.256$] & $138{,}141\,\text{parses/s}$ \\ \hline
+\textbf{Schema Size} & \textbf{Fields} & \textbf{Latency / Parse} & \textbf{Throughput} \\
+\hline
+Small & 5 & $0.492\,\mu\text{s}$ [$0.489$, $0.500$] & $2{,}032{,}520\,\text{parses/s}$ \\
+Medium & 25 & $1.938\,\mu\text{s}$ [$1.920$, $1.968$] & $515{,}996\,\text{parses/s}$ \\
+Large & 100 & $7.239\,\mu\text{s}$ [$7.227$, $7.256$] & $138{,}141\,\text{parses/s}$ \\
+\hline
 \end{tabular}
 \end{table}
-% src: measurements/2026-09-07-laptop-p5-retake/raw/compile_time_latency.txt, trials 1-6,
-%   median and min/max per column. Throughput is the reciprocal of the median, derived here
-%   rather than recorded.
 
-A 100-field schema is ingested in $7.239\,\mu\text{s}$, comfortably under the $11.4\,\mu\text{s}$ this work has claimed for it. The end-to-end cost of invoking \texttt{protoc} was measured only under the repudiated harness and was not re-taken in this campaign, so the ratio between the two is not restated here.
-% src: README.md compile-time table ("Under the paper's below-11.4 us claim"). The 7 ms protoc
-%   figure and the ~620x-8,150x reduction derived from it appear in no record of this campaign;
-%   combining a repudiated figure with a current one would put two instruments in one ratio.
+A 100-field schema is ingested in $7.239\,\mu\text{s}$. We do not report a direct ratio to \texttt{protoc}, because this campaign did not collect an end-to-end \texttt{protoc} measurement.
 
-The parser's ceiling is a property of the compiler rather than of the schema language. Bisection at Clang's default \texttt{constexpr} step budget puts the largest single message that compiles at 304 fields; raising the budget to $4{,}194{,}304$ steps compiles both 500 and 1000 fields. Compiling with the documented default stated explicitly fails in the same place, which is consistent with that default being $1{,}048{,}576$, and the project sets no \texttt{constexpr} step flag anywhere in its own build.
-% src: raw/constexpr_step_limit.txt sections 1-4: bisection (375, 312 STEP_LIMIT; 281, 296, 300
-%   pass; 304, 302, 301 STEP_LIMIT); -fconstexpr-steps=4194304 rescues 500 and 1000; explicit
-%   default also fails; no constexpr flag anywhere in the build
+The parser's ceiling is a property of the compiler rather than of the schema language. Bisection at Clang's default \texttt{constexpr} step budget compiles a largest single message of 300 fields and fails at 301 fields. Raising the budget to $4{,}194{,}304$ steps compiles both 500 and 1000 fields. An explicit \texttt{1{,}048{,}576}-step limit fails at the same point, and the project sets no \texttt{constexpr} step flag in its build.
 
 \subsection{Runtime Serialization Throughput}
 \label{sec:runtime_comparison}
-We evaluated encoding and decoding on a representative 3-field \texttt{Person} message (47-byte wire payload) over seven trials of $10^6$ iterations each with a $20{,}000$-iteration warmup, against both the full \texttt{libprotobuf} and \texttt{libprotobuf-lite} (\texttt{optimize\_for = LITE\_RUNTIME}). Both references were built and run in the same sitting from the same source, so the two columns of Table~\ref{tab:runtime_comparison} are comparable with each other as well as with \texttt{ctpb}.
+We evaluated encoding and decoding on a 3-field \texttt{Person} message with a 47-byte wire payload over seven trials of $10^6$ iterations each with a $20{,}000$-iteration warm-up. The references are full \texttt{libprotobuf} and \texttt{libprotobuf-lite} (\texttt{optimize\_for = LITE\_RUNTIME}). Each reference was built and run in a separate paired arm with \texttt{ctpb}.
 
 \begin{table}[ht]
 \centering
-\caption{Runtime latency, median and range of six trials, 47-byte payload}
+\caption{Runtime latency, median [min, max] of six trials, 47-byte payload}
 \label{tab:runtime_comparison}
 \renewcommand{\arraystretch}{1.15}
-\setlength{\tabcolsep}{2pt}
-\tiny
-\begin{tabular}{|l|c|c|c|}
+\setlength{\tabcolsep}{1pt}
+\scriptsize
+\begin{tabular}{llccc}
 \hline
-\textbf{Operation} & \textbf{Latency (ns)} & \textbf{Throughput} & \textbf{Speedup} \\ \hline
-\textbf{\texttt{ctpb} encode} & $\mathbf{6.614}$ [$6.268$, $6.698$] & $\mathbf{151.2\,\text{MOps/s}}$ & baseline \\ \hline
-\texttt{libprotobuf-lite} encode & $36.992$ [$35.691$, $37.087$] & $27.0\,\text{MOps/s}$ & $\mathbf{5.593\times}$ \\ \hline
-\texttt{libprotobuf} encode & $34.755$ [$34.675$, $36.755$] & $28.8\,\text{MOps/s}$ & $\mathbf{5.375\times}$ \\ \hline\hline
-\textbf{\texttt{ctpb} decode} & $\mathbf{62.218}$ [$58.114$, $62.859$] & $\mathbf{16.1\,\text{MOps/s}}$ & baseline \\ \hline
-\texttt{libprotobuf-lite} decode & $68.553$ [$64.715$, $69.242$] & $14.6\,\text{MOps/s}$ & $\mathbf{1.102\times}$ \\ \hline
-\texttt{libprotobuf} decode & $63.552$ [$63.401$, $68.705$] & $15.7\,\text{MOps/s}$ & $\mathbf{1.088\times}$ \\ \hline
+\textbf{Reference} & \textbf{Operation} & \textbf{\texttt{ctpb} (ns)} & \textbf{Reference (ns)} & \textbf{Speedup} \\
+\hline
+\texttt{lite} & Encode & $6.614$ [$6.268$, $6.698$] & $36.992$ [$35.691$, $37.087$] & $5.593\times$ \\
+\texttt{lite} & Decode & $62.218$ [$58.114$, $62.859$] & $68.553$ [$64.715$, $69.242$] & $1.102\times$ \\
+\texttt{full} & Encode & $6.466$ [$6.416$, $6.831$] & $34.755$ [$34.675$, $36.755$] & $5.375\times$ \\
+\texttt{full} & Decode & $58.434$ [$57.334$, $59.064$] & $63.552$ [$63.401$, $68.705$] & $1.088\times$ \\
+\hline
 \end{tabular}
 \end{table}
-% src: measurements/2026-09-07-laptop-p5-retake/raw/runtime_prealloc.txt, both blocks,
-%   trials 1-6. The ctpb decode cell is the lite-arm run; the full-libprotobuf arm's own ctpb
-%   decode median is 76.33 and its encode 8.56, which is why the two speedups are quoted
-%   against their own arm's ctpb median rather than against one shared cell. Speedups are
-%   computed from unrounded medians and do not reproduce exactly from the two-decimal cells.
-%   Throughput is the reciprocal of the median, derived here rather than recorded.
 
-Encoding is where the compile-time approach pays. Field sizes are known to the compiler, so the encoder allocates one exactly sized buffer through \texttt{byte\_size()} and writes through raw pointers with no reallocation and no virtual dispatch; the margin is $5.59\times$ against the lite runtime and $5.38\times$ against the full one. That the two agree closely is the point of running both: the encode margin does not depend on the descriptor pools, reflection registries and arenas that only the full build carries.
+For this workload, \texttt{ctpb} encodes $5.59\times$ faster than the lite runtime and $5.38\times$ faster than the full runtime. Field sizes are known to the compiler, so the encoder allocates one exactly sized buffer through \texttt{byte\_size()} and writes fields through raw pointers without reallocation or virtual dispatch. These results are limited to the message shape and allocation policy exercised here.
 
-Decoding is a much narrower result, and it is now a like-for-like one. Earlier versions of this work reported decode beside a caveat: \texttt{ctpb} omitted the UTF-8 validation of \texttt{string} fields that proto3 requires and the reference implementation performs, so part of any margin was work not done. \texttt{ctpb} now performs that validation, and measuring it in place rather than pricing it separately puts its cost at $+0.129\,\text{ns}$ on a $60\,\text{ns}$ decode, with the ranges of the two builds overlapping completely. That is below the resolution of this instrument on this host, where the round-to-round spread is about $4\,\text{ns}$, so it is a statement about what the instrument can see and not a claim that validation is free. The caveat is retired and the result it qualified is unchanged in character: $1.10\times$ is parity, not a lead, and decode remains a far narrower result than encode.
-% src: README.md "the sentence that has to travel with it" (0.98x -> 1.04x on removing the
-%   per-iteration allocation; no ctpb code changed, decode_from fills an existing object and
-%   string fields go through assign()); the 7.37 % inclusive figure for IsStructurallyValidUTF8 /
-%   VerifyUtf8String / VerifyUTF8 in libprotobuf-lite, and no utf8 anywhere in ctpb's headers
+Decoding is a narrower result. All reported \texttt{ctpb} measurements include UTF-8 validation for \texttt{string} fields. The $1.09\times$ to $1.10\times$ ratios are reported as near parity rather than a general decoding lead.
 
 \subsection{Binary Footprint}
 \begin{table}[ht]
 \centering
-\caption{Binary Footprint and Code Generation, exact bytes}
+\caption{Binary footprint and generated source, exact bytes}
 \label{tab:binary_footprint}
 \renewcommand{\arraystretch}{1.1}
 \setlength{\tabcolsep}{3pt}
 \scriptsize
-\begin{tabular}{|l|c|c|c|}
+\begin{tabular}{lccc}
 \hline
-\textbf{Metric} & \textbf{\texttt{ctpb}} & \textbf{\texttt{protoc} (Dyn)} & \textbf{\texttt{protoc} (Static)} \\ \hline
-Generated Source Lines & \textbf{0} & 754 & 754 \\ \hline
-Stripped Executable & \textbf{18{,}776\,B} & 27{,}504\,B & 1{,}759{,}368\,B \\ \hline
-Text Section (\texttt{.text}) & \textbf{10{,}047\,B} & 16{,}373\,B & 1{,}731{,}945\,B \\ \hline
-External Shared Libraries & \textbf{0} & \texttt{libprotobuf.so} & \textbf{0} \\ \hline
+\textbf{Metric} & \textbf{\texttt{ctpb}} & \textbf{Generated (dyn.)} & \textbf{Generated (static)} \\
+\hline
+Generated C++ source lines & \textbf{0} & 754 & 754 \\
+Stripped executable & \textbf{18{,}776\,B} & 27{,}504\,B & 1{,}759{,}368\,B \\
+Code and read-only data & \textbf{10{,}941\,B} & 16{,}373\,B & 1{,}731{,}945\,B \\
+Protobuf runtime dependency & \textbf{none} & \texttt{libprotobuf.so} & \textbf{none} \\
+\hline
 \end{tabular}
 \end{table}
-% src: measurements/2026-09-07-laptop-p5-retake/raw/binary_size.txt sections 1 (379 + 375
-%   = 754 lines against 0), 4 ("Exact sizes (bytes)"), 5 (size(1) text column of the stripped
-%   executables) and 6 (ldd: ctpb links only libstdc++, libm, libgcc_s and libc).
-%   The object-file row of the previous version is dropped rather than restated: the record
-%   holds object sizes only as ls -lh rounding (22K, 26K, 5.5K), which is where the earlier
-%   21.9 and 31.3 KB tenths came from, and a tenth of a kilobyte is not recoverable from them.
 
-For a single 3-field message \texttt{protoc} emits 754 lines across \texttt{.pb.h} and \texttt{.pb.cc}, whereas \texttt{ctpb} emits no files at all (Table~\ref{tab:binary_footprint}). In fully static deployments \texttt{ctpb}'s stripped executable is $18{,}776$ bytes against $1{,}759{,}368$, a $93.70\times$ reduction, because \texttt{libprotobuf} statically bundles descriptor pools, reflection registries, mutex tables, and arena allocators while \texttt{ctpb} compiles to exact inlined field loops. Against the dynamic build the reduction is $1.46\times$, and the dynamic \texttt{ctpb} build links only \texttt{libc}, \texttt{libm}, \texttt{libstdc++} and \texttt{libgcc\_s}, removing \texttt{libprotobuf.so} version skew from deployment. These are byte counts rather than rounded kilobytes, which is what makes the ratio checkable: the figure this work has claimed all along is right, and it could not previously be recovered from what was published with it.
-% src: raw/binary_size.txt section 4; 1759368 / 18776 = 93.6996, and 27504 / 18776 = 1.4649
+For a single 3-field message, \texttt{protoc} emits 754 lines across \texttt{.pb.h} and \texttt{.pb.cc}, whereas \texttt{ctpb} emits no generated files (Table~\ref{tab:binary_footprint}). The generated application linked dynamically is $1.46\times$ larger than the \texttt{ctpb} sample. The generated application with a static \texttt{libprotobuf} runtime is $93.70\times$ larger, reflecting the bundled runtime rather than a fully static end-to-end deployment comparison. All file sizes exclude dynamically linked system libraries; the \texttt{ctpb} sample has no Protocol Buffers runtime dependency but still links the system C++ runtime. The second row is \texttt{size}'s \texttt{text} column, which covers code together with read-only data rather than the \texttt{.text} section alone. ELF page alignment gives the stripped-file metric a resolution floor of about 4\,KB, so the table is a coarse footprint measure for small changes.
 
-One property of the metric belongs beside the ratio. Section offsets here are page-aligned, so
-growth of up to roughly 4\,KB is absorbed into existing padding without changing the file size: the
-metric has a resolution floor of about one page. Adding UTF-8 validation to the decoder grew the
-aggregate text section by 894 bytes and placed the DFA table in \texttt{.rodata} while the stripped
-file stayed byte-identical at $18{,}776$. The $93.70\times$ ratio is unaffected, both sides being
-measured alike and separated by more than four hundred times the floor; what the floor bounds is
-the reading of a future unchanged figure, which is not evidence that nothing was added.
-% src: measurements/2026-09-07-laptop-p5-retake/README.md -- 18776 B stripped before and after,
-%   text 10047 -> 10941, utf8_dfa absent -> present in .rodata, .text 0x10f0 and .rodata 0x3000
-%   in both binaries; (1759368-18776)/4096 = 425.0 times the ~4 KB floor.
-
-\subsection{Reference Interoperability and gRPC Parity}
+\subsection{Wire Interoperability and Message Framing}
 \label{sec:interop}
-Correctness was established by dual-direction interoperability testing against \texttt{libprotobuf} 3.21.12 and the \texttt{protoc} code generator \cite{protobuf_spec}. Messages serialized by Google's \texttt{SerializeToString()} decode through \texttt{ctpb::decode<T>()} with full fidelity across scalars, Zigzag integers, strings, enums, nested messages, \texttt{bytes} fields, and packed repeated scalars; in the reverse direction, buffers produced by \texttt{ctpb::encode()} parse cleanly through Google's \texttt{ParseFromArray()}, with all wire tags, varints, and length delimiters conforming to reference parser expectations. Packed repeated fields and \texttt{bytes} are covered explicitly because both are encoded differently from the singular scalar path and are the cases where an independent implementation most easily diverges.
+Correctness was assessed through dual-direction interoperability tests against \texttt{libprotobuf} 3.21.12 and the \texttt{protoc} code generator \cite{protobuf_spec}. For the exercised cases, messages serialized by Google's \texttt{SerializeToString()} decode through \texttt{ctpb::decode<T>()} across scalars, Zigzag integers, strings, enums, nested messages, \texttt{bytes} fields, and packed repeated scalars. In the reverse direction, buffers produced by \texttt{ctpb::encode()} parse through Google's \texttt{ParseFromArray()}, with wire tags, varints, and length delimiters accepted by the reference parser. Packed repeated fields and \texttt{bytes} are included explicitly because both differ from the singular scalar path.
 
-Transport parity was verified against gRPC \cite{grpc_spec}, whose HTTP/2 framing prefixes each message with a one-byte compression flag and a four-byte big-endian length. Specializing \texttt{grpc::SerializationTraits<T>} over \texttt{ctpb::encode} and \texttt{ctpb::decode} is sufficient to carry \texttt{ctpb} types across standard gRPC channels, and automated tests confirm that framed messages are processed correctly by unmodified gRPC server handlers.
+The tests also cover the message framing gRPC uses on the wire \cite{grpc_spec}, a one-byte compression flag followed by a four-byte big-endian length. The test builds that framing around a \texttt{ctpb}-encoded payload, strips it again, and parses the result with \texttt{libprotobuf}. No gRPC library, channel, or server handler takes part, so what is shown is payload and framing fidelity; integration with a gRPC runtime, and generation of service stubs, remain untested.

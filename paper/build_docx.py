@@ -239,12 +239,17 @@ def add_table(caption, headers, rows, bold_first_col_rows=(), widths=None):
     cap = add_p(caption, style="table head")
     t = doc.add_table(rows=1 + len(rows), cols=len(headers))
     set_borders(t)
-    t.autofit = True
-    if widths:
-        t.autofit = False
-        for j, wdt in enumerate(widths):
-            for row in t.rows:
-                row.cells[j].width = wdt
+    if widths is None:
+        widths = [Inches(3.38 / len(headers)) for _ in headers]
+    t.autofit = False
+    grid_cols = t._tbl.tblGrid.gridCol_lst
+    for j, wdt in enumerate(widths):
+        grid_cols[j].set(qn("w:w"), str(wdt.twips))
+        for row in t.rows:
+            row.cells[j].width = wdt
+    tbl_width = t._tbl.tblPr.find(qn("w:tblW"))
+    tbl_width.set(qn("w:w"), str(sum(wdt.twips for wdt in widths)))
+    tbl_width.set(qn("w:type"), "dxa")
     for j, h in enumerate(headers):
         cell = t.cell(0, j)
         cell.text = ""
@@ -270,8 +275,7 @@ def add_table(caption, headers, rows, bold_first_col_rows=(), widths=None):
 
 
 # ============================================================ TITLE (1 column)
-add_p("Zero-Codegen Protocol Buffers via C++26 Static Reflection "
-      "and Compile-Time Metaprogramming", style="paper title")
+add_p("Zero-Codegen Protocol Buffers with C++26 Static Reflection", style="paper title")
 
 add_p("Alex I. Tsvetanov", style="Author")
 add_p("Faculty of Computer Systems and Technologies", style="Affiliation")
@@ -291,20 +295,23 @@ last_title_p._element.get_or_add_pPr().append(sectPr_title)
 
 # ========================================================== ABSTRACT (2 col)
 abstract = (
-    "Serialization frameworks like Protocol Buffers rely on external code "
-    "generators (protoc) to translate schema definitions into intermediate C++ "
-    "files, introducing build-system complexity, toolchain version skew, and "
-    "compilation bloat. We present ctpb, a header-only C++26 library that "
-    "eliminates external code generation entirely by performing compile-time IDL "
-    "parsing and type synthesis using C++26 static reflection (P2996) and "
-    "resource inclusion (P1967 #embed). A three-stage compile-time pipeline "
-    "tokenizes .proto schemas into an Abstract Syntax Tree during constant "
-    "evaluation and materializes them as first-class C++ structs with optimized "
-    "wire visitors. Benchmarks show schema parsing under 11.4 microseconds and "
-    "wire throughput of 1,396.0 MB/s encoding and 350.2 MB/s decoding, speedups "
-    "of 2.81 times and 1.71 times over Google libprotobuf that persist against "
-    "the leaner libprotobuf-lite baseline, with bidirectional wire-format "
-    "fidelity verified against the reference implementation."
+    "Serialization frameworks such as Protocol Buffers typically rely on external "
+    "code generators (protoc) to translate schemas into C++ files, which adds "
+    "build rules, version coupling, and generated source. This paper presents "
+    "ctpb, a header-only C++26 library that uses static reflection to parse "
+    ".proto schemas and synthesize C++ types during "
+    "compilation. The library carries the schema in the translation unit as a "
+    "compile-time string, performs "
+    "a constexpr recursive-descent parse into an Abstract Syntax Tree, and "
+    "materializes type-safe fields and wire-format visitors without generated "
+    ".pb.h or .pb.cc files. On one host, a synthetic 100-field schema is "
+    "parsed in 7.239 microseconds (range 7.227 to 7.256 microseconds). For a "
+    "47-byte, three-field Person workload, ctpb encodes between 5.38x and 5.59x "
+    "faster than full and lite libprotobuf, while decoding remains near parity "
+    "(between 1.09x and 1.10x) and includes proto3 UTF-8 validation. A stripped "
+    "sample executable is 18,776 bytes versus 1,759,368 bytes for the "
+    "generated-code static-runtime comparison. Wire-format fidelity is verified "
+    "bidirectionally against the reference implementation."
 )
 p = doc.add_paragraph()
 p.style = doc.styles["Abstract"]
@@ -317,7 +324,7 @@ p = doc.add_paragraph()
 p.style = doc.styles["Keywords"]
 r = p.add_run("Keywords—")
 r.italic = True
-p.add_run("Protocol Buffers, C++26, static reflection, #embed, "
+p.add_run("Protocol Buffers, C++26, static reflection, "
           "compile-time metaprogramming, zero-codegen serialization")
 
 # ============================================================= I. INTRODUCTION
@@ -341,24 +348,28 @@ add_p(
     "external build targets rather than first-class compile-time entities.",
     style="Body Text")
 add_p(
-    "The upcoming ISO C++26 standard removes the need for this arrangement. "
-    "P1967 `#embed` [4] provides zero-overhead compile-time file inclusion, and "
-    "P2996 Static Reflection [5] provides programmatic type synthesis through "
-    "splicing.", style="Body Text")
+    "C++26 makes a different arrangement possible in compilers that implement "
+    "it. P2996 Static Reflection [5] provides programmatic type synthesis "
+    "through splicing, and P1967 `#embed` [4] is the standardized way to bring "
+    "an external file into a translation unit without generating C++ source with "
+    "tools such as `xxd -i`. `ctpb` is built on the former; the evaluated "
+    "implementation receives the schema text directly rather than through "
+    "`#embed`.",
+    style="Body Text")
 add_p(
     "We present `ctpb` (Compile-Time Protobuf) [6], a header-only C++26 library "
-    "that eliminates `protoc` entirely: it embeds `.proto` schemas into the "
-    "translation unit, runs a fully `constexpr` recursive-descent parser inside "
-    "the compiler front-end, and synthesizes type-safe structs, accessors, and "
-    "wire-format routines through static reflection. Our contributions are a "
-    "three-stage compile-time architecture that turns raw IDL text into "
-    "first-class C++ types with no intermediate disk I/O; a zero-allocation "
-    "`constexpr` proto3 parser handling nested messages, enums, maps, oneofs, and "
-    "reserved ranges; the application of P2996 to inject member fields and wire "
-    "visitors programmatically; and an evaluation establishing sub-11.4 "
-    "microsecond schema ingestion and encoding throughput above 1,300 MB/s, "
-    "verified for wire-format fidelity against the reference implementation.",
-    style="Body Text")
+    "that carries `.proto` schemas in the translation unit as compile-time "
+    "strings, runs a `constexpr` "
+    "recursive-descent parser in the compiler front-end, and synthesizes type-safe "
+    "structs and wire-format routines through static reflection. The contribution "
+    "is a three-stage architecture that turns raw IDL text into first-class C++ "
+    "types without generated intermediate files. Its parser handles nested "
+    "messages, enums, maps, oneofs, and reserved ranges, while P2996 injects "
+    "fields and makes wire visitors available programmatically. The evaluation "
+    "reports a 7.239 microsecond parse for a synthetic 100-field schema and "
+    "encoding speedups from 5.38x to 5.59x over full and lite libprotobuf on a "
+    "47-byte Person workload, with bidirectional wire-format tests against the "
+    "reference implementation.", style="Body Text")
 
 # ================================================================ II. BACKGROUND
 add_p("Background", style="heading 1")
@@ -380,17 +391,16 @@ add_p(
 
 add_p("C++26 Language Facilities", style="heading 2")
 add_p(
-    "Two ISO C++26 proposals make compile-time IDL ingestion possible. P1967 [4] "
-    "adds the `#embed` directive, exposing an external file as a contiguous "
-    "compile-time byte span without the external build scripts (`xxd -i` and "
-    "similar) previously required. P2996 [5] adds static reflection around the "
-    "opaque `std::meta::info` type, supporting introspection, programmatic "
-    "generation of member descriptors (`define_aggregate()`, "
-    "`data_member_spec()`), and splicing of reflected entities into concrete "
-    "declarations. Combined with `constexpr` evaluation, the two turn the "
-    "compiler front-end into a programmable meta-compiler capable of digesting "
-    "an external domain-specific language and emitting native types.",
-    style="Body Text")
+    "Two C++26 proposals bear on compile-time IDL ingestion. "
+    "P1967 [4] adds the `#embed` directive, which expands an external resource "
+    "into values that can initialize compile-time storage without a generated "
+    "source file. P2996 [5] adds static reflection around the opaque "
+    "`std::meta::info` type, supporting introspection, programmatic generation "
+    "of member descriptors (`define_aggregate()`, `data_member_spec()`), and "
+    "splicing of reflected entities into concrete declarations. Together with "
+    "`constexpr` evaluation, these facilities let the implementation parse an "
+    "external domain-specific language during compilation and construct native "
+    "types.", style="Body Text")
 
 # ============================================================ III. ARCHITECTURE
 add_p("Architecture and Compile-Time Pipeline", style="heading 1")
@@ -398,9 +408,12 @@ add_p(
     "`ctpb` is organized as a three-stage pipeline executing entirely within the "
     "compiler front-end prior to code emission.", style="Body Text")
 add_p(
-    "Stage 1, source embedding. The user supplies a `.proto` path as a template "
-    "argument. Under C++26 this is loaded via `#embed` into a contiguous "
-    "immutable byte buffer, mapped to a zero-copy `std::string_view`.",
+    "Stage 1, source ingestion. The schema text is supplied as a non-type "
+    "template argument and held in immutable compile-time storage, mapped to a "
+    "zero-copy `std::string_view`. `#embed` is the standardized route from a "
+    "`.proto` file to that storage without a generated source file; the "
+    "evaluated implementation takes the text itself, so the file-reading step is "
+    "not exercised here.",
     style="Body Text")
 add_p(
     "Stage 2, constexpr lexing and AST construction. The `ctpb::parser` is "
@@ -411,30 +424,34 @@ add_p(
 add_p(
     "Stage 3, reflection splicing and type synthesis. `define_message` looks up "
     "the requested entity in the AST and, via P2996 `define_aggregate`, injects a "
-    "struct whose members match each field, together with `encode()` and "
-    "`decode()` visitors, directly into the active translation unit.",
-    style="Body Text")
+    "struct whose members match each field directly into the active translation "
+    "unit. Generic `ctpb::encode` and `ctpb::decode` visitors use the resulting "
+    "metadata.", style="Body Text")
 add_p("The resulting public interface requires no macros and no build step:",
       style="Body Text")
 add_code([
     '#include <ctpb/ctpb.hpp>',
     '',
+    'inline constexpr ctpb::fixed_string person_proto = R"(',
+    '  syntax = "proto3"; package tutorial;',
+    '  message Person { string name = 1; int32 id = 2; }',
+    ')";',
+    '',
     '// Compile-time schema synthesis',
-    'consteval { ctpb::define_message<"person.proto",',
-    '                                 "tutorial.Person">(); }',
-    'using Person = ctpb::message_t<"person.proto",',
-    '                               "tutorial.Person">;',
+    'consteval { ctpb::define_message<person_proto, "Person">(); }',
+    'using Person = ctpb::message_t<person_proto, "Person">;',
     '',
     'Person p{};',
     'p.name = "Alex I. Tsvetanov";',
     'p.id   = 42;',
     '',
     'std::vector<std::byte> wire = ctpb::encode(p);',
-    'auto decoded = ctpb::decode<Person>(wire);',
+    'auto decoded = ctpb::decode<Person>(wire); // std::expected<Person, ctpb::wire::decode_error>',
 ])
 doc.add_paragraph()
-add_p("Every field offset, wire tag, and type check is resolved at compile time "
-      "with zero runtime dispatch.", style="Body Text")
+add_p("Field offsets, wire tags, and type checks are resolved at compile time; "
+      "runtime operations use the generated metadata rather than a reflection "
+      "registry.", style="Body Text")
 
 # ======================================================= IV. LEXING AND PARSING
 add_p("Constexpr Lexing and Parsing", style="heading 1")
@@ -480,24 +497,34 @@ add_code([
     'consteval auto complete_message_struct(',
     '        std::meta::info incomplete_type) {',
     '  using Schema = parse<ProtoSource, MessageName>;',
-    '  constexpr auto count = Schema::field_count();',
     '  std::vector<std::meta::info> members;',
     '',
-    '  auto append_member = [&]<std::size_t I>() {',
-    '    constexpr auto info = Schema::get_field(I);',
-    '    std::meta::info type_info =',
-    '        resolve_type_info(info.type);',
-    '    if (info.is_repeated) {',
+    '  for (const field_info& info :',
+    '           Schema::declared_fields()) {',
+    '    std::meta::info type_info = ^^int;',
+    '    if (info.type == "string")',
+    '      type_info = ^^std::string;',
+    '    else if (info.type == "uint32")',
+    '      type_info = ^^unsigned int;',
+    '    else if (info.type == "int64")',
+    '      type_info = ^^long long;',
+    '    else if (info.type == "double")',
+    '      type_info = ^^double;',
+    '    else if (info.type == "bool")',
+    '      type_info = ^^bool;',
+    '    else if (info.type == "bytes")',
+    '      type_info = ^^std::vector<std::byte>;',
+    '    // ... remaining scalar types elided; an enum',
+    '    // field keeps the default `int`, since proto3',
+    '    // encodes enums as varints.',
+    '',
+    '    if (info.is_repeated)',
     '      type_info = std::meta::substitute(',
     '          ^^std::vector, {type_info});',
-    '    }',
+    '',
     '    members.push_back(std::meta::data_member_spec(',
     '        type_info, {.name = info.name}));',
-    '  };',
-    '',
-    '  [&]<std::size_t... Is>(std::index_sequence<Is...>) {',
-    '    (append_member.template operator()<Is>(), ...);',
-    '  }(std::make_index_sequence<count>{});',
+    '  }',
     '',
     '  return std::meta::define_aggregate(',
     '      incomplete_type, members);',
@@ -506,26 +533,27 @@ add_code([
 doc.add_paragraph()
 add_p("Type Mapping and Generated Interface", style="heading 2")
 add_p(
-    "The proto3-to-C++ mapping is strict and deterministic: the sized integer "
-    "types map to the corresponding `std::intN_t` and `std::uintN_t` (with `sint` "
+    "The synthesized members follow a fixed mapping: the sized integer "
+    "types map to the corresponding C++ integer types (with `sint` "
     "and `sfixed` variants sharing the signed representation and differing only "
     "in wire encoding), `float`, `double` and `bool` map to their C++ "
     "equivalents, `string` to `std::string`, `bytes` to "
-    "`std::vector<std::byte>`, `repeated T` to `std::vector<T>`, `map<K,V>` to "
-    "`std::unordered_map<K,V>`, and `oneof` to `std::variant`.",
+    "`std::vector<std::byte>`, and `repeated T` to `std::vector<T>`. The mapping "
+    "is partial rather than complete: `map` and `oneof` members are parsed into "
+    "the AST but are not yet synthesized, and a field whose type is an enum or a "
+    "nested message is emitted as `int` rather than as a distinct type.",
     style="Body Text")
 add_p(
     "Beyond member generation, `ctpb` supplies direct dot-syntax field access "
-    "(`p.name`), non-intrusive `ctpb::encode` and `ctpb::decode` visitors that "
-    "traverse the member descriptors reflectively, and defaulted member-wise "
-    "comparison operators.", style="Body Text")
+    "(`p.name`) and non-intrusive `ctpb::encode` and `ctpb::decode` visitors that "
+    "traverse the member descriptors reflectively.", style="Body Text")
 
 # ======================================================== VI. WIRE FORMAT ENGINE
 add_p("Wire Format Engine", style="heading 1")
 add_p("Encoding", style="heading 2")
 add_p(
     "The serialization engine in `ctpb::wire` manipulates the byte stream "
-    "directly, without intermediate allocation. Encoding proceeds in two passes: "
+    "directly, without intermediate buffers. Encoding proceeds in two passes: "
     "`byte_size()` computes the exact wire length from compile-time field "
     "metadata, the output buffer is allocated once, and the fields are then "
     "written through a raw pointer with no reallocation or virtual dispatch. "
@@ -540,189 +568,194 @@ add_p(
     "`std::span<const std::byte>` and bounds-checks every read: varint decoding "
     "refuses to advance past the buffer end or beyond the ten-byte maximum width, "
     "and length-delimited reads validate the declared length against the "
-    "remaining bytes before yielding a subspan. Failures are reported through a "
-    "typed `decode_error` rather than an exception, so decoding remains usable in "
+    "remaining bytes before yielding a subspan. `ctpb::decode` returns failures "
+    "as `std::expected<T, decode_error>` rather than throwing, so decoding remains usable in "
     "`noexcept` contexts.", style="Body Text")
 add_p(
-    "Unknown field numbers are not an error. The `skip_field` method uses the "
+    "Unknown field numbers are tolerated during decoding. The `skip_field` method uses the "
     "wire type alone to advance past an unrecognized integer, fixed-width block, "
-    "or length-delimited payload, preserving the proto3 forward-compatibility "
-    "guarantee when a peer sends a newer schema version.", style="Body Text")
+    "or length-delimited payload, allowing an older `ctpb` reader to consume a "
+    "message containing newer fields. Skipped fields are not retained for "
+    "re-serialization.", style="Body Text")
 
 # ======================================================== VII. EVALUATION
 add_p("Experimental Evaluation", style="heading 1")
 add_p(
-    "All benchmarks ran inside the project's own `sleepingeight/clang-cpp-refl` "
-    "Docker image on an AMD Ryzen 5 3600 (6 cores, x86_64, Ubuntu 24.04), "
-    "compiled with Clang 21.0 (P2996 branch) under "
-    "`-std=c++26 -freflection -O3` and linked against Protobuf 3.21.12. The full "
-    "pipeline is reproducible from the repository Dockerfile [6], and the raw "
-    "per-trial output behind every figure below is published with it.",
+    "All results in this section come from one sitting on 7 September "
+    "2026: an AMD Ryzen 7 5800H with 16 logical CPUs running Linux 7.2.3. "
+    "Before the run, the scaling governor and energy-performance preference of "
+    "every CPU were set to `performance`; afterwards both were restored and "
+    "verified against the state captured beforehand. No frequency samples "
+    "accompany this sitting's record. The timed work ran in a container image "
+    "built from the project's own recipe [6], using the experimental Clang 21 "
+    "branch that implements P2996, `-std=c++26 -freflection -O3`, and "
+    "Protobuf 3.21.12.",
+    style="Body Text")
+add_p(
+    "Each `ctpb`--reference pair was measured independently, so the full-library "
+    "and lite-library comparisons have separate `ctpb` baselines. Trial 0 is "
+    "excluded as a warm-up; all tables report the median and full range of the "
+    "six retained trials. The results describe this host and these workloads, "
+    "not performance across machines. Raw trial lines, the environment record, "
+    "and the scripts that produced them are published with the artifact [6].",
     style="Body Text")
 
 add_p("Compile-Time Schema Parsing", style="heading 2")
 add_p(
     "We measured the `constexpr` parser on three schemas scaled by field count "
     "alone (5, 25, and 100 `int32` fields), each over 20,000 iterations after a "
-    "2,000-iteration warmup, across seven trials (Table I, median plus or minus "
-    "sample standard deviation).", style="Body Text")
+    "2,000-iteration warm-up, across seven trials (Table I, median and full range "
+    "of six retained trials). The parser is compiled as ordinary optimized code and "
+    "timed at run time, so these figures bound the work the front end does per schema "
+    "rather than measuring it inside constant evaluation, where the same code runs on "
+    "the compiler's interpreter.", style="Body Text")
 add_table(
-    "Compile-Time Parser Throughput and Latency",
-    ["Schema Size", "Fields", "Latency / Parse", "Throughput"],
+    "Parser Latency, Compiled as Ordinary Code, Median and Range of Six Trials",
+    ["Schema", "Fields", "Latency / Parse", "Throughput"],
     [
-        ["Small", "5", "0.86 ± 0.11 µs", "1,164,144 parses/s"],
-        ["Medium", "25", "3.04 ± 0.23 µs", "329,164 parses/s"],
-        ["Large", "100", "11.36 ± 0.73 µs", "88,013 parses/s"],
-    ])
+        ["Small", "5", "0.492 [0.489, 0.500] µs", "2,032,520 parses/s"],
+        ["Medium", "25", "1.938 [1.920, 1.968] µs", "515,996 parses/s"],
+        ["Large", "100", "7.239 [7.227, 7.256] µs", "138,141 parses/s"],
+    ],
+    widths=[Inches(0.58), Inches(0.42), Inches(1.35), Inches(1.03)])
 add_p(
-    "Invoking `protoc` in the same environment on a 3-field schema takes 7 ms end "
-    "to end (median of seven trials) once process creation, disk I/O, and code "
-    "generation are counted. `ctpb` ingests equivalent schemas in 0.86 to 11.36 "
-    "microseconds, a reduction of roughly 620 to 8,150 times, and does so without "
-    "emitting files that a build system must subsequently track.",
+    "A 100-field schema is ingested in 7.239 microseconds. We do not report a "
+    "direct ratio to `protoc`, because this campaign did not collect an end-to-end "
+    "`protoc` measurement.",
     style="Body Text")
+add_p(
+    "The parser's ceiling is a property of the compiler rather than of the schema "
+    "language. Bisection at Clang's default `constexpr` step budget compiles a "
+    "largest single message of 300 fields and fails at 301 fields. Raising the "
+    "budget to 4,194,304 steps compiles both 500 and 1,000 fields. An explicit "
+    "1,048,576-step limit fails at the same point, and the project sets no "
+    "`constexpr` step flag in its build.", style="Body Text")
 
 add_p("Runtime Serialization Throughput", style="heading 2")
 add_p(
-    "We evaluated encoding and decoding on a representative 3-field `Person` "
-    "message (47-byte wire payload) against the official Google `libprotobuf`, "
-    "over seven trials of one million iterations each with a 20,000-iteration "
-    "warmup. Latency is reported as median plus or minus sample standard "
-    "deviation; throughput and speedup derive from the median.", style="Body Text")
+    "We evaluated encoding and decoding on a 3-field `Person` message with a "
+    "47-byte wire payload over seven trials of one million iterations each with a "
+    "20,000-iteration warm-up. The references are full `libprotobuf` and "
+    "`libprotobuf-lite` (`optimize_for = LITE_RUNTIME`). Each reference was "
+    "built and run in a separate paired arm with `ctpb`.", style="Body Text")
 add_table(
-    "Runtime Performance: ctpb vs. libprotobuf",
-    ["Framework / Operation", "Latency (ns)", "Throughput", "Data Rate", "Speedup"],
+    "Runtime Latency, Median [Min, Max] of Six Trials, 47-Byte Payload",
+    ["Ref.", "Op.", "ctpb (ns)", "Ref. (ns)", "Speedup"],
     [
-        ["ctpb Encode", "32.1 ± 1.0", "31.15 MOps/s", "1,396.0 MB/s", "2.81x"],
-        ["Google Protobuf Encode", "90.3 ± 3.4", "11.08 MOps/s", "496.4 MB/s", "1.00x"],
-        ["ctpb Decode", "128.0 ± 5.9", "7.81 MOps/s", "350.2 MB/s", "1.71x"],
-        ["Google Protobuf Decode", "218.6 ± 8.4", "4.58 MOps/s", "205.0 MB/s", "1.00x"],
+        ["lite", "Encode", "6.614 [6.268, 6.698]", "36.992 [35.691, 37.087]", "5.593x"],
+        ["lite", "Decode", "62.218 [58.114, 62.859]", "68.553 [64.715, 69.242]", "1.102x"],
+        ["full", "Encode", "6.466 [6.416, 6.831]", "34.755 [34.675, 36.755]", "5.375x"],
+        ["full", "Decode", "58.434 [57.334, 59.064]", "63.552 [63.401, 68.705]", "1.088x"],
     ],
-    bold_first_col_rows=(0, 2),
-    widths=[Inches(1.02), Inches(0.62), Inches(0.68), Inches(0.66), Inches(0.40)])
+    widths=[Inches(0.42), Inches(0.48), Inches(0.85), Inches(0.85), Inches(0.78)])
 add_p(
-    "Encoding gains 2.81 times from compile-time field-size evaluation, exact "
-    "single-buffer pre-allocation via `byte_size()`, and raw-pointer writes free "
-    "of reallocation and virtual dispatch. Decoding gains 1.71 times from inlined "
-    "unrolled field loops and direct member assignment, avoiding the arena and "
-    "descriptor machinery of the reference implementation.", style="Body Text")
+    "For this workload, `ctpb` encodes 5.59x faster than the lite runtime and "
+    "5.38x faster than the full runtime. Field sizes are known to the compiler, "
+    "so the encoder allocates one exactly sized buffer through `byte_size()` and "
+    "writes fields through raw pointers without reallocation or virtual dispatch. "
+    "These results are limited to the message shape and allocation policy "
+    "exercised here.", style="Body Text")
 add_p(
-    "Because full `libprotobuf` carries descriptor pools, reflection registries, "
-    "and arenas that `ctpb` does not implement, part of that margin measures "
-    "absent features rather than the compile-time approach itself. We therefore "
-    "repeated the comparison against `libprotobuf-lite` "
-    "(`optimize_for = LITE_RUNTIME`), which strips them, on the same machine with "
-    "the same script and iteration count. The margin does not shrink: 3.06 times "
-    "encoding (32.7 ± 2.1 ns versus 99.9 ± 12.4 ns) and 1.69 times "
-    "decoding (132.6 ± 5.5 ns versus 223.7 ± 10.0 ns). The speedup is "
-    "therefore not an artifact of comparing against a heavier reference "
-    "implementation.", style="Body Text")
+    "Decoding is a narrower result. All reported `ctpb` measurements include UTF-8 "
+    "validation for `string` fields. The 1.09x to 1.10x ratios are reported as "
+    "near parity rather than a general decoding lead.", style="Body Text")
 
 add_p("Binary Footprint", style="heading 2")
 add_table(
-    "Binary Footprint and Code Generation",
-    ["Metric", "ctpb", "protoc (Dyn)", "protoc (Static)"],
+    "Binary Footprint and Generated Source, Exact Bytes",
+    ["Metric", "ctpb", "Generated (dyn.)", "Generated (static)"],
     [
         ["Generated Source Lines", "0", "754", "754"],
-        ["Object Files (.o)", "21.9 KB", "31.3 KB", "31.3 KB"],
-        ["Stripped Executable", "18.3 KB", "26.9 KB", "1,718.1 KB"],
-        ["Text Section (.text)", "9.8 KB", "16.0 KB", "1,691.4 KB"],
-        ["External Shared Libraries", "0", "libprotobuf.so", "0"],
-    ])
+        ["Stripped Executable", "18,776 B", "27,504 B", "1,759,368 B"],
+        ["Code and Read-Only Data", "10,941 B", "16,373 B", "1,731,945 B"],
+        ["Protobuf Runtime Dependency", "none", "libprotobuf.so", "none"],
+    ],
+    widths=[Inches(1.30), Inches(0.45), Inches(0.75), Inches(0.88)])
 add_p(
-    "For a single 3-field message `protoc` emits 754 lines across `.pb.h` and "
-    "`.pb.cc`, whereas `ctpb` emits no files at all (Table III). In fully static "
-    "deployments the `ctpb` stripped executable is 18.3 KB against 1.72 MB, a "
-    "93.7 times reduction, because `libprotobuf` statically bundles descriptor "
-    "pools, reflection registries, mutex tables, and arena allocators while "
-    "`ctpb` compiles to exact inlined field loops. The dynamic `ctpb` build links "
-    "only `libc` and `libstdc++`, removing `libprotobuf.so` version skew from "
-    "deployment.", style="Body Text")
+    "For a single 3-field message, `protoc` emits 754 lines across `.pb.h` and "
+    "`.pb.cc`, whereas `ctpb` emits no generated files. The generated application "
+    "linked dynamically is 1.46x larger than the `ctpb` sample. The generated "
+    "application with a static `libprotobuf` runtime is 93.70x larger, reflecting "
+    "the bundled runtime rather than a fully static end-to-end deployment "
+    "comparison. All file sizes exclude dynamically linked system libraries; the "
+    "`ctpb` sample has no Protocol Buffers runtime dependency but still links the "
+    "system C++ runtime. The second row is the text column reported by size, "
+    "which covers executable code together with read-only data, not the .text "
+    "section alone. ELF page alignment also gives the stripped-file metric a "
+    "resolution floor of about 4 KB, so the table is a coarse footprint measure "
+    "for small changes.", style="Body Text")
 
-add_p("Reference Interoperability and gRPC Parity", style="heading 2")
+add_p("Wire Interoperability and Message Framing", style="heading 2")
 add_p(
-    "Correctness was established by dual-direction interoperability testing "
+    "Correctness was assessed through dual-direction interoperability testing "
     "against `libprotobuf` 3.21.12 and the `protoc` code generator [1]. Messages "
     "serialized by the Google `SerializeToString()` decode through "
-    "`ctpb::decode<T>()` with full fidelity across scalars, Zigzag integers, "
+    "`ctpb::decode<T>()` for the exercised cases across scalars, Zigzag integers, "
     "strings, enums, nested messages, `bytes` fields, and packed repeated "
     "scalars; in the reverse direction, buffers produced by `ctpb::encode()` "
-    "parse cleanly through the Google `ParseFromArray()`, with all wire tags, "
-    "varints, and length delimiters conforming to reference parser expectations. "
+    "parse through the Google `ParseFromArray()`, with wire tags, varints, and "
+    "length delimiters accepted by the reference parser. "
     "Packed repeated fields and `bytes` are covered explicitly because both are "
     "encoded differently from the singular scalar path and are the cases where an "
     "independent implementation most easily diverges.", style="Body Text")
 add_p(
-    "Transport parity was verified against gRPC [7], whose HTTP/2 framing "
-    "prefixes each message with a one-byte compression flag and a four-byte "
-    "big-endian length. Specializing `grpc::SerializationTraits<T>` over "
-    "`ctpb::encode` and `ctpb::decode` is sufficient to carry `ctpb` types across "
-    "standard gRPC channels, and automated tests confirm that framed messages are "
-    "processed correctly by unmodified gRPC server handlers.", style="Body Text")
+    "The tests also cover the message framing gRPC uses on the wire [7], a "
+    "one-byte compression flag followed by a four-byte big-endian length. The "
+    "test builds that framing around a `ctpb`-encoded payload, strips it again, "
+    "and parses the result with `libprotobuf`. No gRPC library, channel, or "
+    "server handler takes part, so what is shown is payload and framing "
+    "fidelity; integration with a gRPC runtime, and generation of service stubs, "
+    "remain untested.", style="Body Text")
 
 # ============================================================ VIII. RELATED WORK
 add_p("Related Work", style="heading 1")
 add_p(
-    "Compile-time metaprogramming in ISO C++ has progressed from template tricks "
-    "and macro preprocessors to standardized `constexpr` facilities [8], "
-    "culminating in P2996 [5] and P1967 [4]. CTRE [9] established the precedent "
-    "that an entire domain-specific grammar, in that case regular expressions, "
-    "can be tokenized and compiled to typed C++ artifacts inside `constexpr` "
-    "evaluation rather than through an external tool; `ctpb` applies the same "
-    "principle to the substantially larger proto3 grammar and adds type synthesis "
-    "rather than pattern matching. Boost.PFR [10] predates P2996 and offers "
-    "structural reflection over existing aggregates, sufficient for serializing a "
-    "struct that already exists but unable to synthesize members from an external "
-    "schema.", style="Body Text")
-add_p(
-    "Among serialization libraries, reflect-cpp [11] provides C++20 "
-    "reflection-based serialization but derives schemas from existing C++ structs "
-    "rather than compiling external IDL, and so lacks proto3 wire tags, packed "
-    "encoding, and reserved-range validation. FlatBuffers [2] and Cap'n Proto [3] "
-    "target zero-copy in-memory layout but ship standalone compiler binaries "
-    "analogous to `protoc`. The lightweight protobuf runtimes reduce overhead "
-    "without removing the generation step: `libprotobuf-lite` omits runtime "
-    "reflection descriptors, nanopb [12] targets embedded systems through its own "
-    "`protoc` plugin, protozero [13] relies on hand-written accessors, and upb "
-    "[14], the Google small-footprint C core, still consumes `protoc`-generated "
-    "descriptors. `ctpb` differs from all of these in eliminating the generation "
-    "step outright while retaining proto3 as the schema authority.",
+    "Prior C++ work has moved from template techniques to `constexpr` evaluation "
+    "and reflection; P2996 [5] supplies the type-synthesis facilities used here, "
+    "and P1967 [4] the standardized resource inclusion. CTRE [8] illustrates compile-time "
+    "processing of a domain-specific grammar; `ctpb` applies the same broad idea "
+    "to proto3 parsing and schema-driven types. In serialization, reflect-cpp [9] "
+    "derives schemas from existing C++ structs, whereas FlatBuffers [2] and Cap'n "
+    "Proto [3] retain standalone compilers. `ctpb` instead treats proto3 as the "
+    "external schema authority while avoiding generated C++ source.",
     style="Body Text")
 
 # ========================================================== IX. LIMITATIONS
 add_p("Limitations and Future Work", style="heading 1")
 add_p(
-    "Three limitations bound the present work. P2996 static reflection is "
-    "available only in experimental Clang and GCC branches pending final ISO "
-    "C++26 ratification, so deployment currently depends on a non-release "
-    "toolchain. The initial release covers wire serialization only; gRPC service "
-    "stubs are deliberately out of scope, although the transport traits above "
-    "show that `ctpb` types integrate with existing gRPC channels. Finally, "
-    "constant evaluation is bounded first by the compiler's step limit rather than "
-    "by memory: a single message of 300 `int32` fields compiles under Clang's "
-    "default of 1,048,576 steps and one of 301 does not. The bound is a flag rather "
-    "than a wall, since `-fconstexpr-steps=4194304` compiles a 1,000-field message, "
-    "but the default is low enough that a large schema meets it and `ctpb` does not "
-    "raise it. Future work targets the Well-Known Types "
-    "(`Timestamp`, `Duration`), compile-time JSON mapping, and asynchronous stub "
-    "synthesis.", style="Body Text")
+    "The present work has four limitations. First, the evaluated implementation "
+    "requires an experimental Clang P2996 branch, so deployment depends on the "
+    "compiler revision recorded with the benchmark artifact. Second, the initial "
+    "release covers wire serialization only: gRPC service stubs are out of "
+    "scope, and integration with a gRPC runtime is untested, the evaluation "
+    "above covering the framing alone. Third, constant evaluation is bounded "
+    "first by the compiler's step limit rather than by memory: a single message of "
+    "300 `int32` fields compiles under Clang's default of 1,048,576 steps, while "
+    "301 fields fail. The bound is a flag rather than a wall, since "
+    "`-fconstexpr-steps=4194304` compiles a 1,000-field message, but `ctpb` does "
+    "not raise the default. Finally, the performance data comes from one host and "
+    "a limited set of synthetic schemas and one 47-byte `Person` message. Future "
+    "work targets the Well-Known Types (`Timestamp`, `Duration`), compile-time JSON "
+    "mapping, broader workload coverage, and asynchronous stub synthesis.",
+    style="Body Text")
 
 # ============================================================ X. CONCLUSION
 add_p("Conclusion", style="heading 1")
 add_p(
     "We presented `ctpb`, a header-only C++26 library that performs Protocol "
-    "Buffers serialization without an external code generator. By uniting P1967 "
-    "`#embed`, `constexpr` recursive-descent parsing, and P2996 static "
-    "reflection, `ctpb` compiles `.proto` schemas directly into type-safe C++ "
-    "structures inside the compiler front-end. Measured against the Google "
-    "reference implementation it delivers a 93.7 times reduction in standalone "
-    "binary footprint, sub-11.4 microsecond schema ingestion, and wire throughput "
-    "of 1,396 MB/s encoding (2.81 times) and 350 MB/s decoding (1.71 times), "
-    "margins that persist against the leaner `libprotobuf-lite` baseline, with "
-    "bidirectional wire-format fidelity verified against `libprotobuf` itself. "
-    "On this evidence static reflection is a practical foundation for interface "
-    "definition compilation, and on binary size and encoding throughput a better "
-    "one than an external generator.",
+    "Buffers serialization without generated C++ source. By combining "
+    "`constexpr` recursive-descent parsing with P2996 static reflection, "
+    "`ctpb` compiles `.proto` schemas directly into type-safe C++ structures in "
+    "the compiler front-end. On one host, a 100-field synthetic schema is "
+    "parsed in 7.239 microseconds, and the tested 47-byte `Person` workload "
+    "encodes 5.38x to 5.59x faster than the full and lite `libprotobuf` variants. "
+    "Decoding remains near parity while including UTF-8 validation, and the "
+    "exercised cases pass bidirectional wire-format interoperability tests against "
+    "`libprotobuf`. The static-runtime generated comparison is 93.70x larger than "
+    "the `ctpb` sample, while the dynamic generated comparison is 1.46x larger. "
+    "These results show that static reflection can remove generated Protocol "
+    "Buffers source for the evaluated schemas and toolchain while retaining tested "
+    "wire-format interoperability.",
     style="Body Text")
 
 # ========================================================== ACKNOWLEDGMENT
@@ -741,14 +774,14 @@ REFS = [
     'https://google.github.io/flatbuffers/, 2014. Google Open Source.',
     'K. Varda, "Cap\'n proto: Insanely fast data interchange format and RPC '
     'system." https://capnproto.org/, 2013. Sandstorm.io.',
-    'J. Meneide, "#embed - a resource inclusion mechanism for C and C++ (ISO/IEC '
+    'J. Meneide, "#embed - a scannable, tooling-friendly binary resource inclusion mechanism for C and C++ (ISO/IEC '
     'JTC1/SC22/WG21 P1967R14)." '
-    'https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2024/p1967r14.html, '
-    '2024. ISO WG21 Standard Proposal.',
-    'B. Revzin, W. Childers, P. Dimov, A. Sutton, F. Vali, and D. Vandevoorde, '
-    '"Reflection for C++26 (ISO/IEC JTC1/SC22/WG21 P2996R8)." '
-    'https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2024/p2996r8.html, '
-    '2024. ISO WG21 Standard Proposal.',
+    'https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2025/p1967r14.html, '
+    '2025. ISO WG21 Standard Proposal.',
+    'W. Childers, P. Dimov, D. Katz, B. Revzin, A. Sutton, F. Vali, and D. Vandevoorde, '
+    '"Reflection for C++26 (ISO/IEC JTC1/SC22/WG21 P2996R13)." '
+    'https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2025/p2996r13.html, '
+    '2025. ISO WG21 Standard Proposal.',
     'A. I. Tsvetanov, "ctpb: Compile-time protobuf library via C++26 static '
     'reflection." https://github.com/Alex-Tsvetanov/Compile-time-Protobuf, 2026. '
     'Open Source Publication Repository.',
@@ -756,26 +789,11 @@ REFS = [
     'and wire protocol specification." '
     'https://grpc.io/docs/what-is-grpc/core-concepts/, 2025. Cloud Native '
     'Computing Foundation.',
-    'D. Vandevoorde, W. Childers, A. Sutton, and F. Vali, "Scalable reflection in '
-    'C++ (ISO/IEC JTC1/SC22/WG21 P1240R2)." '
-    'https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2020/p1240r2.pdf, 2020. '
-    'ISO WG21 Proposal.',
     'H. Dusíková, "CTRE: Compile time regular expression for C++." '
     'https://github.com/hanickadot/compile-time-regular-expressions, 2020. '
     'Accessed: 2026-08-27.',
-    'A. Polukhin, "Boost.PFR: Basic reflection library." '
-    'https://www.boost.org/doc/libs/release/doc/html/boost_pfr.html, 2019. '
-    'Accessed: 2026-08-27.',
     'G. Vormayr, "reflect-cpp: Fast C++20 reflection and serialization library." '
     'https://github.com/getml/reflect-cpp, 2024. Accessed: 2026-08-20.',
-    'P. Aimonen, "nanopb: Protocol buffers with small code size." '
-    'https://github.com/nanopb/nanopb, 2011. Accessed: 2026-08-27.',
-    'D. Springmeyer and K. Käfer, "protozero: Minimalist protocol buffer '
-    'decoder and encoder in C++." https://github.com/mapbox/protozero, 2016. '
-    'Accessed: 2026-08-27.',
-    'Google LLC, "upb: A small protobuf implementation in C." '
-    'https://github.com/protocolbuffers/protobuf/tree/main/upb, 2018. Accessed: '
-    '2026-08-27.',
 ]
 for r in REFS:
     add_p(r, style="references")

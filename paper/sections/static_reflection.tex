@@ -7,29 +7,28 @@ Once the AST is parsed, \texttt{ctpb} maps the schema onto a native aggregate us
 template <fixed_string ProtoSource, fixed_string MessageName>
 consteval auto complete_message_struct(std::meta::info incomplete_type) {
     using Schema = parse<ProtoSource, MessageName>;
-    constexpr auto count = Schema::field_count();
     std::vector<std::meta::info> members;
 
-    auto append_member = [&]<std::size_t I>() {
-        constexpr auto info = Schema::get_field(I);
-        std::meta::info type_info = resolve_type_info(info.type);
-        if (info.is_repeated) {
+    for (const field_info& info : Schema::declared_fields()) {
+        std::meta::info type_info = ^^int;
+        if (info.type == "string")      type_info = ^^std::string;
+        else if (info.type == "double") type_info = ^^double;
+        else if (info.type == "bytes")  type_info = ^^std::vector<std::byte>;
+        // ... remaining scalar types elided; an enum field keeps the
+        // default `int`, since proto3 encodes enums as varints.
+        if (info.is_repeated)
             type_info = std::meta::substitute(^^std::vector, {type_info});
-        }
+
         members.push_back(std::meta::data_member_spec(
             type_info, {.name = info.name}
         ));
-    };
-
-    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-        (append_member.template operator()<Is>(), ...);
-    }(std::make_index_sequence<count>{});
+    }
 
     return std::meta::define_aggregate(incomplete_type, members);
 }
 \end{lstlisting}
 
 \subsection{Type Mapping and Generated Interface}
-The proto3-to-C++ mapping is strict and deterministic: the sized integer types map to the corresponding \texttt{std::int$N$\_t} and \texttt{std::uint$N$\_t} (with \texttt{sint} and \texttt{sfixed} variants sharing the signed representation and differing only in wire encoding), \texttt{float}/\texttt{double}/\texttt{bool} map to their C++ equivalents, \texttt{string} to \texttt{std::string}, \texttt{bytes} to \texttt{std::vector<std::byte>}, \texttt{repeated T} to \texttt{std::vector<T>}, \texttt{map<K,V>} to \texttt{std::unordered\_map<K,V>}, and \texttt{oneof} to \texttt{std::variant}.
+The synthesized members follow a fixed mapping: the sized integer types map to the corresponding C++ integer types (with \texttt{sint} and \texttt{sfixed} variants sharing the signed representation and differing only in wire encoding), \texttt{float}/\texttt{double}/\texttt{bool} map to their C++ equivalents, \texttt{string} to \texttt{std::string}, \texttt{bytes} to \texttt{std::vector<std::byte>}, and \texttt{repeated T} to \texttt{std::vector<T>}. The mapping is partial rather than complete: \texttt{map} and \texttt{oneof} members are parsed into the AST but are not yet synthesized, and a field whose type is an enum or a nested message is emitted as \texttt{int} rather than as a distinct type.
 
-Beyond member generation, \texttt{ctpb} supplies direct dot-syntax field access (\texttt{p.name}), non-intrusive \texttt{ctpb::encode} and \texttt{ctpb::decode} visitors that traverse the member descriptors reflectively, and defaulted member-wise comparison operators.
+Beyond member generation, \texttt{ctpb} supplies direct dot-syntax field access (\texttt{p.name}) and non-intrusive \texttt{ctpb::encode} and \texttt{ctpb::decode} visitors that traverse the member descriptors reflectively.

@@ -8,7 +8,6 @@
 \usepackage{graphicx}
 \usepackage{textcomp}
 \usepackage{xcolor}
-\usepackage{flushend}
 \usepackage{fancyhdr}
 \usepackage{balance}
 \usepackage{multirow}
@@ -32,7 +31,7 @@
 \textwidth = 182mm
 \textheight = 238mm
 \footskip = 12.157mm
-\usepackage{hyperref}
+\usepackage[hidelinks]{hyperref}
 \usepackage{listings}
 
 \usepackage{pgfplots}
@@ -112,7 +111,7 @@
 \newcounter{tblEqCounter} %create a counter
 
 \title{{\fontsize{21}{14.4}\selectfont
-Zero-Codegen Protocol Buffers via C++26 Static Reflection and Compile-Time Metaprogramming}%
+Zero-Codegen Protocol Buffers with C++26 Static Reflection}%
 \thanks{\textsuperscript{1}Alex I. Tsvetanov is with the Faculty of Computer Systems and Technologies, Technical University of Sofia, ul. Professor Georgi Bradistilov 11, Sofia, Bulgaria (E-mail: \href{mailto:atsvetanov@tu-sofia.bg}{atsvetanov@tu-sofia.bg}).}%
 }
 
@@ -133,11 +132,11 @@ Alex I. Tsvetanov\textsuperscript{1}}}
     \fancyfoot[C]{\thepage}
 
 \begin{abstract}
-Serialization frameworks like Protocol Buffers rely on external code generators (\texttt{protoc}) to translate schema definitions into intermediate C++ files, introducing build-system complexity, toolchain version skew, and compilation bloat. This paper presents \texttt{ctpb}, a header-only C++26 library that eliminates external code generation entirely by performing compile-time IDL parsing and type synthesis using C++26 static reflection (P2996) and resource inclusion (P1967 \texttt{\#embed}). A three-stage compile-time pipeline tokenizes \texttt{.proto} schemas into an Abstract Syntax Tree during constant evaluation and materializes them as first-class C++ structs with optimized wire visitors. Benchmarks on one pinned host show schema parsing under $11.4\,\mu\text{s}$ and encoding at $6{,}776.9\,\text{MiB/s}$, $5.59\times$ the \texttt{libprotobuf-lite} baseline and $5.38\times$ the full library. Decoding reaches parity rather than a margin, $1.10\times$ against the lite baseline, and the comparison is like-for-like: \texttt{ctpb} performs the UTF-8 validation of \texttt{string} fields that proto3 requires, at a measured cost below the resolution of the instrument. A stripped static executable is $18{,}776$ bytes against $1{,}759{,}368$, a $93.70\times$ reduction, and wire-format fidelity is verified bidirectionally against the reference implementation.
+Serialization frameworks such as Protocol Buffers typically rely on external code generators (\texttt{protoc}) to translate schemas into C++ files, which adds build rules, version coupling, and generated source. This paper presents \texttt{ctpb}, a header-only C++26 library that uses static reflection to parse \texttt{.proto} schemas and synthesize C++ types during compilation. The library carries the schema in the translation unit as a compile-time string, performs a \texttt{constexpr} recursive-descent parse into an Abstract Syntax Tree, and materializes type-safe fields and wire-format visitors without generated \texttt{.pb.h} or \texttt{.pb.cc} files. On one host, a synthetic 100-field schema is parsed in $7.239\,\mu\text{s}$ (range $7.227$ to $7.256\,\mu\text{s}$). For a 47-byte, three-field \texttt{Person} workload, \texttt{ctpb} encodes between $5.38\times$ and $5.59\times$ faster than full and lite \texttt{libprotobuf}, while decoding remains near parity (between $1.09\times$ and $1.10\times$) and includes proto3 UTF-8 validation. A stripped sample executable is $18{,}776$ bytes versus $1{,}759{,}368$ bytes for the generated-code static-runtime comparison. Wire-format fidelity is verified bidirectionally against the reference implementation.
 \end{abstract}
 
 \begin{IEEEkeywords}
-Protocol Buffers, C++26, Static Reflection, \#embed, Compile-Time Metaprogramming, Zero-Codegen Serialization
+Protocol Buffers, C++26, Static Reflection, Compile-Time Metaprogramming, Zero-Codegen Serialization
 \end{IEEEkeywords}
 
 \input{sections/introduction}
@@ -147,6 +146,7 @@ Protocol Buffers, C++26, Static Reflection, \#embed, Compile-Time Metaprogrammin
 \input{sections/static_reflection}
 \input{sections/wire_engine}
 \input{sections/benchmark}
+\balance
 \input{sections/related_work}
 \input{sections/conclusion}
 
