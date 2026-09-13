@@ -32,10 +32,28 @@ A modern, header-only C++26 library that ingests `.proto` files directly at comp
 | **Recursive-Descent `constexpr` Parser** | ✅ | Full proto3 grammar: messages, enums, repeated, maps, oneofs, reserved tags |
 | **P2996 Static Reflection Engine** | ✅ | Pure zero-macro `define_message` spliced structs with dot syntax |
 | **Two-Pass Raw-Pointer Wire Engine** | ✅ | Exact compile-time pre-allocation (`byte_size()`) + non-allocating direct pointer encoding |
-| **Comprehensive Test Suite (9 Suites)** | ✅ | Lexer, parser, wire encoding, roundtrips, nested messages, maps, oneofs, wire-format edge cases, Google interop |
+| **Comprehensive Test Suite (12 Suites)** | ✅ | Lexer, parser, wire encoding, roundtrips, nested messages, maps, oneofs, wire-format edge cases, UTF-8 validation, lazy views and their regressions, Google interop |
 | **Microbenchmark Suite** | ✅ | Ingestion latency, binary footprint evaluation, head-to-head runtime speedup vs `libprotobuf` and `libprotobuf-lite` |
 | **Academic Publication Paper** | ✅ | 7-page IEEE CSIT 2026 conference paper (`paper/main.pdf`) |
 | **Conference Beamer Presentation** | ✅ | 12-slide 10-minute presentation (`presentation/presentation.pdf`) |
+
+---
+
+## Toolchain notes
+
+**Selecting the C++26 path.** `CTPB_HAS_P2996` is set when the compiler reports
+reflection support (`__has_feature(reflection)`, i.e. `-freflection` is on) *and*
+`<meta>` is reachable. Both halves matter: the clang-p2996 branch defines no
+reflection feature-test macro of its own, and `<meta>` ships only in that
+toolchain's libc++ tree, so a build that passes `-stdlib=libstdc++` silently gets
+the C++20 fallback instead. Define `CTPB_HAS_P2996` yourself to override.
+
+**`decode_into` vs `decode`.** On the clang-p2996 branch, returning a
+reflection-generated message *by value* crashes the compiler once the message
+holds a repeated field (an assertion in `setPointOfInstantiation`), and wrapping
+it in `std::expected` crashes the same way. `ctpb::decode_into(msg, bytes)` fills
+a message the caller already owns and compiles there; `ctpb::decode<T>(bytes)`
+returns by value and is the nicer API everywhere else.
 
 ---
 
@@ -191,7 +209,7 @@ cmake -S . -B build -DCMAKE_CXX_STANDARD=26 -DCTPB_BUILD_TESTS=ON -DCTPB_BUILD_B
 # Compile everything
 cmake --build build -j
 
-# Execute all 8 unit tests and interoperability suites
+# Execute all 11 unit tests and the interoperability suite
 ctest --test-dir build --output-on-failure
 ```
 
@@ -237,7 +255,11 @@ latexmk -pdf -outdir=presentation presentation/presentation.tex
 │   ├── test_nested.cpp     # Hierarchical nested message resolution
 │   ├── test_oneof.cpp      # proto3 oneof union serialization
 │   ├── test_maps.cpp       # proto3 map<K,V> wire testing
-│   └── test_interop_protobuf.cpp # Bidirectional Google protoc & gRPC parity
+│   ├── test_wire_edge_cases.cpp   # Varint widths, lengths, unknown fields
+│   ├── test_utf8_validation.cpp   # proto3 UTF-8 validation on string fields
+│   ├── test_view.cpp              # Zero-copy lazy views over wire bytes
+│   ├── test_view_regressions.cpp  # Wire cases the view layer once got wrong
+│   └── test_interop_protobuf.cpp # Bidirectional Google protoc & gRPC framing
 ├── benchmarks/             # Microbenchmark evaluation scripts
 │   ├── eval_runtime_comparison.sh # Head-to-head runtime benchmark
 │   └── eval_binary_size.sh        # Binary footprint benchmark

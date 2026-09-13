@@ -290,7 +290,9 @@ public:
         if (!read_varint(raw)) return false;
         wt = static_cast<wire_type>(raw & 0x7);
         field_num = static_cast<std::int64_t>(raw >> 3);
-        return true;
+        // Field number 0 is not assignable in any .proto, so a tag carrying it
+        // is a malformed stream rather than an unknown field to skip.
+        return field_num != 0;
     }
 
     constexpr bool read_varint(std::uint64_t& out) noexcept {

@@ -38,6 +38,9 @@ message Person {
   repeated PhoneNumber phones = 4;
   bytes avatar = 5;
   repeated int32 lucky_numbers = 6;
+  fixed32 checksum = 7;
+  sfixed64 offset = 8;
+  repeated sfixed32 deltas = 9;
 }
 )";
 
@@ -62,8 +65,13 @@ struct CtpbPerson : ctpb::reflect_base<PersonSchema, CtpbPerson> {
     std::vector<CtpbPhoneNumber> phones;
     std::vector<std::byte> avatar;
     std::vector<std::int32_t> lucky_numbers;
+    std::uint32_t checksum = 0;
+    std::int64_t offset = 0;
+    std::vector<std::int32_t> deltas;
 
-    auto reflect_members() { return std::tie(name, id, email, phones, avatar, lucky_numbers); }
+    auto reflect_members() {
+        return std::tie(name, id, email, phones, avatar, lucky_numbers, checksum, offset, deltas);
+    }
 };
 
 // gRPC HTTP/2 5-byte framing helpers:
@@ -117,6 +125,11 @@ int main() {
         google_person.set_avatar(std::string("\x00\x01\xDE\xAD\xBE\xEF", 6));
         for (int n : {3, 1, 4, 1, 5, 9, 2, 6}) google_person.add_lucky_numbers(n);
 
+        // Fixed-width scalars, including a negative one and a packed batch.
+        google_person.set_checksum(0xDEADBEEFu);
+        google_person.set_offset(-1234567890123LL);
+        for (int d : {-7, 0, 2147483647}) google_person.add_deltas(d);
+
         std::string serialized;
         assert(google_person.SerializeToString(&serialized));
 
@@ -139,7 +152,11 @@ int main() {
         };
         assert(ctpb_decoded->avatar == expected_avatar);
         assert((ctpb_decoded->lucky_numbers == std::vector<std::int32_t>{3, 1, 4, 1, 5, 9, 2, 6}));
-        std::printf("[PASS] Test 1: Google protoc -> ctpb decode validated (incl. bytes + packed repeated).\n");
+        assert(ctpb_decoded->checksum == 0xDEADBEEFu);
+        assert(ctpb_decoded->offset == -1234567890123LL);
+        assert((ctpb_decoded->deltas == std::vector<std::int32_t>{-7, 0, 2147483647}));
+        std::printf("[PASS] Test 1: Google protoc -> ctpb decode validated "
+                    "(incl. bytes, packed repeated and fixed-width scalars).\n");
     }
 
     // -------------------------------------------------------------
@@ -153,6 +170,9 @@ int main() {
         ctpb_p.phones.push_back({"+44-20-7946-0919", 1}); // HOME
         ctpb_p.avatar = {std::byte{0xCA}, std::byte{0xFE}, std::byte{0x00}, std::byte{0xBA}, std::byte{0xBE}};
         ctpb_p.lucky_numbers = {7, 11, 21, 42};
+        ctpb_p.checksum = 0x0BADF00Du;
+        ctpb_p.offset = -9007199254740993LL;
+        ctpb_p.deltas = {-2147483648, 5, -1};
 
         std::vector<std::byte> wire_bytes = ctpb::encode(ctpb_p);
         assert(!wire_bytes.empty());
@@ -171,7 +191,14 @@ int main() {
         assert(google_decoded.lucky_numbers_size() == 4);
         assert(google_decoded.lucky_numbers(0) == 7);
         assert(google_decoded.lucky_numbers(3) == 42);
-        std::printf("[PASS] Test 2: ctpb encode -> Google protoc decode validated (incl. bytes + packed repeated).\n");
+        assert(google_decoded.checksum() == 0x0BADF00Du);
+        assert(google_decoded.offset() == -9007199254740993LL);
+        assert(google_decoded.deltas_size() == 3);
+        assert(google_decoded.deltas(0) == -2147483648);
+        assert(google_decoded.deltas(1) == 5);
+        assert(google_decoded.deltas(2) == -1);
+        std::printf("[PASS] Test 2: ctpb encode -> Google protoc decode validated "
+                    "(incl. bytes, packed repeated and fixed-width scalars).\n");
     }
 
     // -------------------------------------------------------------

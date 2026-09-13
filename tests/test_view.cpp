@@ -262,7 +262,8 @@ int main() {
     }
 
     // ------------------------------------------------------------------
-    // Wrong wire type for a declared field is rejected
+    // Wrong wire type for a declared field is skipped like an unknown field,
+    // which is what ctpb::decode and libprotobuf do with one.
     // ------------------------------------------------------------------
     {
         std::vector<std::byte> wrong;
@@ -270,12 +271,13 @@ int main() {
         out_varint(wrong, 2);
         wrong.push_back(std::byte{0x00});
         wrong.push_back(std::byte{0x01});
-        auto bad = ctpb::decode_view<PersonSchema>(wrong);
-        CHECK(!bad.has_value());
-        std::printf("[PASS] view: wrong wire type rejected.\n");
+        auto lenient = ctpb::decode_view<PersonSchema>(wrong);
+        CHECK(lenient.has_value());
+        CHECK(lenient->get<"id">().value() == 0);
+        std::printf("[PASS] view: wrong wire type skipped as an unknown field.\n");
     }
 
-#if defined(__cpp_impl_reflection)
+#if CTPB_HAS_P2996
     // ------------------------------------------------------------------
     // P2996 dot-syntax view
     // ------------------------------------------------------------------

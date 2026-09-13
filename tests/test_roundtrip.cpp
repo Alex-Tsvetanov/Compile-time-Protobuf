@@ -50,16 +50,27 @@ int main() {
     std::vector<std::byte> wire_bytes = ctpb::encode(orig);
     assert(!wire_bytes.empty());
 
-    auto decoded = ctpb::decode<PersonMessage>(wire_bytes);
-    assert(decoded.has_value());
-    assert(decoded->name == "Alex Tsvetanov");
-    assert(decoded->id == 1337);
-    assert(decoded->email == "atsvetanov@tu-sofia.bg");
-    
-    assert(decoded->phone_numbers.size() == 3);
-    assert(decoded->phone_numbers[0] == 123456789);
-    assert(decoded->phone_numbers[1] == 987654321);
-    assert(decoded->phone_numbers[2] == 555444333);
+    // Filled in place rather than returned: on the clang-p2996 branch, returning
+    // a reflection-generated message by value is a compiler crash once the
+    // message has a repeated field (see decode_into in reflection.hpp).
+    PersonMessage decoded{};
+    assert(!ctpb::decode_into(decoded, wire_bytes));
+    assert(decoded.name == "Alex Tsvetanov");
+    assert(decoded.id == 1337);
+    assert(decoded.email == "atsvetanov@tu-sofia.bg");
+
+    assert(decoded.phone_numbers.size() == 3);
+    assert(decoded.phone_numbers[0] == 123456789);
+    assert(decoded.phone_numbers[1] == 987654321);
+    assert(decoded.phone_numbers[2] == 555444333);
+
+#if !CTPB_HAS_P2996
+    // The by-value form, where the toolchain supports it.
+    auto returned = ctpb::decode<PersonMessage>(wire_bytes);
+    assert(returned.has_value());
+    assert(returned->name == "Alex Tsvetanov");
+    assert(returned->phone_numbers.size() == 3);
+#endif
 
     std::printf("test_roundtrip: OK\n");
     return 0;

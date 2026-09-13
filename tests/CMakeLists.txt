@@ -14,7 +14,9 @@ ctpb_add_test(test_nested test_nested.cpp)
 ctpb_add_test(test_oneof test_oneof.cpp)
 ctpb_add_test(test_maps test_maps.cpp)
 ctpb_add_test(test_wire_edge_cases test_wire_edge_cases.cpp)
+ctpb_add_test(test_utf8_validation test_utf8_validation.cpp)
 ctpb_add_test(test_view test_view.cpp)
+ctpb_add_test(test_view_regressions test_view_regressions.cpp)
 
 # Official Protobuf & gRPC interoperability verification
 find_package(PkgConfig QUIET)
@@ -39,7 +41,10 @@ if(PkgConfig_FOUND AND PROTOC_EXECUTABLE)
         add_executable(test_interop_protobuf test_interop_protobuf.cpp ${PROTO_SRC} ${PROTO_HDR})
         target_include_directories(test_interop_protobuf PRIVATE ${PROTOBUF_PKG_INCLUDE_DIRS} ${CMAKE_CURRENT_BINARY_DIR})
         target_link_directories(test_interop_protobuf PRIVATE ${PROTOBUF_PKG_LIBRARY_DIRS})
-        if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        # libstdc++ is what the protobuf packages are built against on Linux.
+        # Elsewhere (macOS, where Clang ships libc++ and no libstdc++) asking
+        # for it fails the compile on headers as basic as <limits>.
+        if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
             target_compile_options(test_interop_protobuf PRIVATE -stdlib=libstdc++)
             target_link_options(test_interop_protobuf PRIVATE -stdlib=libstdc++)
         endif()

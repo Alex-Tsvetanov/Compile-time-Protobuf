@@ -24,6 +24,12 @@ message Person {
   repeated PhoneNumber phones = 4;
   bytes avatar = 5;
   repeated int32 lucky_numbers = 6;
+
+  // Fixed-width scalars: their wire form is raw little-endian bytes, not a
+  // varint, and nothing here used to exercise that.
+  fixed32 checksum = 7;
+  sfixed64 offset = 8;
+  repeated sfixed32 deltas = 9;
 }
 
 message AddressBook {

@@ -16,7 +16,9 @@
 //
 // Semantics: "last one wins" for singular fields; repeated fields concatenate
 // occurrences, including mixed packed/unpacked batches. Unknown fields are
-// skipped.
+// skipped, and so is a known field carrying a wire type its declared type does
+// not use — the same leniency `ctpb::decode` and libprotobuf apply, so a peer
+// that re-typed a field number does not make the whole message undecodable.
 //
 // Cost model: singular access scans the message bytes O(message size);
 // repeated fields expose forward iterators that decode each element exactly
@@ -26,15 +28,23 @@
 // The view is non-owning: the input buffer must outlive any use of the view
 // or values taken from it (same contract as std::string_view).
 //
-// Deviations from ctpb::decode: nested messages are validated structurally
-// only (type-aware nested validation needs sub-schema lookup); varints wider
-// than a 32-bit destination truncate silently (protobuf decoder leniency).
+// Nested messages are validated against their own schema down to
+// `view_nest_limit` levels; below that the walk falls back to a structural
+// check (framing only, no UTF-8 or packed-batch checking), because each level
+// costs another compile-time parse of the schema.
+//
+// Deviations from ctpb::decode: a singular message field that occurs more than
+// once keeps the last occurrence instead of merging the occurrences as proto3
+// requires — merging would mean owning storage, which a borrowing view has
+// none of. Iterate such a field to reach every occurrence. Varints wider than
+// a 32-bit destination truncate silently (protobuf decoder leniency).
 
 #include <concepts>
 #include <cstdint>
 #include <cstring>
 #include <expected>
 #include <iterator>
+#include <ranges>
 #include <span>
 #include <string_view>
 #include <type_traits>
@@ -146,8 +156,9 @@ struct cur {
 }
 
 // Strict UTF-8 check (RFC 3629: no overlongs, no surrogates, <= U+10FFFF).
-// Self-contained: wire::valid_utf8 is declared but not defined in this header
-// tree, so the view layer cannot reference it without a link dependency.
+// Kept separate from wire::valid_utf8 (wire.hpp), which runs a DFA over the
+// same grammar; the two agree over every input, and tests/test_view*.cpp pins
+// that. This one reads the ranges directly so the view layer stays legible.
 [[nodiscard]] inline bool valid_utf8_bytes(std::string_view s) noexcept {
     const auto* p = reinterpret_cast<const unsigned char*>(s.data());
     std::size_t i = 0;
@@ -188,6 +199,7 @@ enum class field_cat {
     flt, dbl,                 // float / double
     boolean, enumeration,     // bool / proto enum
     utf8, bytes, submessage,  // string / bytes / nested message
+    map_entry,                // map<K,V>: repeated {key = 1, value = 2} message
 };
 
 [[nodiscard]] constexpr field_cat categorize(bool is_submessage,
@@ -213,8 +225,83 @@ enum class field_cat {
     return field_cat::submessage; // unresolved custom type -> opaque blob
 }
 
+// `Schema::get_field` sets is_enum / is_submessage from the file's top-level
+// declarations only, so an enum declared inside a message arrives unclassified
+// and would be read as an opaque nested message. Resolve the type name here,
+// against the containing message first and then the rest of the file.
+[[nodiscard]] constexpr std::string_view last_segment(std::string_view t) noexcept {
+    const auto pos = t.rfind('.');
+    return pos == std::string_view::npos ? t : t.substr(pos + 1);
+}
+
+[[nodiscard]] consteval bool enum_declared_in(const ast::message& m, std::string_view leaf) noexcept {
+    for (std::size_t i = 0; i < m.nested_enums.size(); ++i) {
+        if (m.nested_enums[i].name == leaf) return true;
+    }
+    for (std::size_t i = 0; i < m.nested_messages.size(); ++i) {
+        if (enum_declared_in(m.nested_messages[i], leaf)) return true;
+    }
+    return false;
+}
+
+template <typename Schema>
+concept SchemaWithAst = requires {
+    Schema::get_file();
+    Schema::message_name;
+};
+
+template <typename Schema>
+[[nodiscard]] consteval field_cat resolve_cat_name(std::string_view t) noexcept {
+    if (const field_cat builtin = categorize(false, false, t);
+        builtin != field_cat::submessage) {
+        return builtin;
+    }
+
+    if constexpr (SchemaWithAst<Schema>) {
+        const auto file = Schema::get_file();
+        const std::string_view leaf = last_segment(t);
+        if (const auto* m = Schema::find_msg_in(file, as_sv(Schema::message_name))) {
+            for (std::size_t i = 0; i < m->nested_enums.size(); ++i) {
+                if (m->nested_enums[i].name == leaf) return field_cat::enumeration;
+            }
+            for (std::size_t i = 0; i < m->nested_messages.size(); ++i) {
+                if (m->nested_messages[i].name == leaf) return field_cat::submessage;
+            }
+        }
+        for (std::size_t i = 0; i < file.top_level_enums.size(); ++i) {
+            if (file.top_level_enums[i].name == leaf) return field_cat::enumeration;
+        }
+        for (std::size_t i = 0; i < file.messages.size(); ++i) {
+            if (enum_declared_in(file.messages[i], leaf)) return field_cat::enumeration;
+        }
+    }
+    return field_cat::submessage;
+}
+
+template <typename Schema, std::size_t I>
+[[nodiscard]] consteval field_cat resolve_cat() noexcept {
+    constexpr auto info = Schema::get_field(I);
+    if (info.is_map)        return field_cat::map_entry;
+    if (info.is_enum)       return field_cat::enumeration;
+    if (info.is_submessage) return field_cat::submessage;
+    return resolve_cat_name<Schema>(as_sv(info.type));
+}
+
+// How many field numbers the schema accounts for. Older schema types expose
+// only the declared fields; newer ones also count maps and oneof branches,
+// which a validator must see or it waves them through unchecked.
+template <typename Schema>
+[[nodiscard]] consteval std::size_t schema_field_total() noexcept {
+    if constexpr (requires { Schema::total_field_count(); }) {
+        return Schema::total_field_count();
+    } else {
+        return Schema::field_count();
+    }
+}
+
 [[nodiscard]] constexpr bool is_packable(field_cat c) noexcept {
-    return !(c == field_cat::utf8 || c == field_cat::bytes || c == field_cat::submessage);
+    return !(c == field_cat::utf8 || c == field_cat::bytes ||
+             c == field_cat::submessage || c == field_cat::map_entry);
 }
 
 // Numeric wire type of a single (non-batch) occurrence: 0 varint, 1 fixed64, 5 fixed32.
@@ -255,6 +342,7 @@ template <> struct elem_type<field_cat::enumeration> { using type = std::int32_t
 template <> struct elem_type<field_cat::utf8>        { using type = std::string_view; };
 template <> struct elem_type<field_cat::bytes>       { using type = std::span<const std::byte>; };
 template <> struct elem_type<field_cat::submessage>  { using type = ::ctpb::msg_blob; };
+template <> struct elem_type<field_cat::map_entry>   { using type = ::ctpb::msg_blob; };
 
 template <field_cat C>
 using elem_type_t = typename elem_type<C>::type;
@@ -327,58 +415,153 @@ template <field_cat C>
     return wire::decode_error::ok;
 }
 
+// How many levels of nested message are validated against their own schema
+// before the walk falls back to a structural check. Each level costs another
+// compile-time parse of the schema, so this is deliberately shallow.
+inline constexpr int view_nest_limit = 3;
+
+// Outcome of validating one occurrence: it checked out, or it carries a wire
+// type the declared type never uses and must be skipped like an unknown field
+// (what ctpb::decode and libprotobuf do), or the payload is malformed.
+struct occ_status {
+    wire::decode_error::kind err = wire::decode_error::ok;
+    bool skip_as_unknown = false;
+};
+
+template <typename Schema, int Depth = view_nest_limit>
+[[nodiscard]] inline wire::decode_error::kind validate_payload(
+        std::span<const std::byte> bytes) noexcept;
+
 template <field_cat cat>
-[[nodiscard]] inline wire::decode_error::kind validate_packable(
+[[nodiscard]] inline occ_status validate_packable(
         cur& c, int wt3, bool repeated) noexcept {
     if (wt3 == single_wt3(cat)) {
         elem_type_t<cat> tmp{};
-        return read_scalar<cat>(c, tmp) ? wire::decode_error::ok
-                                        : wire::decode_error::bad_varint;
+        return read_scalar<cat>(c, tmp) ? occ_status{}
+                                        : occ_status{wire::decode_error::bad_varint, false};
     }
     // Packed batch: decoders must accept wt-2 for any packable repeated field.
     if (wt3 == 2 && repeated) {
         std::span<const std::byte> blob{};
-        if (!rd_blob(c, blob)) return wire::decode_error::truncated;
+        if (!rd_blob(c, blob)) return occ_status{wire::decode_error::truncated, false};
         constexpr std::size_t w = fixed_width(cat);
         if constexpr (w != 0) {
-            if (blob.size() % w != 0) return wire::decode_error::truncated;
+            if (blob.size() % w != 0) return occ_status{wire::decode_error::truncated, false};
         } else {
             cur inner{blob.data(), blob.data() + blob.size()};
             elem_type_t<cat> tmp{};
             while (inner.b < inner.e) {
-                if (!read_scalar<cat>(inner, tmp)) return wire::decode_error::bad_varint;
+                if (!read_scalar<cat>(inner, tmp)) {
+                    return occ_status{wire::decode_error::bad_varint, false};
+                }
             }
         }
-        return wire::decode_error::ok;
+        return occ_status{};
     }
-    return wire::decode_error::bad_wire_type;
+    return occ_status{wire::decode_error::ok, true}; // wire type mismatch: skip
 }
 
-// Validates one occurrence of field I (cursor positioned after the tag).
+// One field of a map entry: key at number 1, value at number 2, each carrying
+// its own declared type.
+template <field_cat C>
+[[nodiscard]] inline occ_status validate_entry_value(cur& c, int wt3) noexcept {
+    if constexpr (is_packable(C)) {
+        return validate_packable<C>(c, wt3, /*repeated=*/false);
+    } else {
+        if (wt3 != 2) return occ_status{wire::decode_error::ok, true};
+        std::span<const std::byte> blob{};
+        if (!rd_blob(c, blob)) return occ_status{wire::decode_error::truncated, false};
+        if constexpr (C == field_cat::utf8) {
+            const std::string_view sv{reinterpret_cast<const char*>(blob.data()), blob.size()};
+            if (!valid_utf8_bytes(sv)) return occ_status{wire::decode_error::invalid_utf8, false};
+        } else if constexpr (C != field_cat::bytes) {
+            if (const auto k = validate_structure(blob); k != wire::decode_error::ok) {
+                return occ_status{k, false};
+            }
+        }
+        return occ_status{};
+    }
+}
+
+// A map<K,V> occurrence is an entry message. Walking it with the declared key
+// and value types is what makes invalid UTF-8 in a map key or a string value
+// fail the message rather than pass unexamined.
+template <field_cat KC, field_cat VC>
+[[nodiscard]] inline wire::decode_error::kind validate_map_entry(
+        std::span<const std::byte> blob) noexcept {
+    cur c{blob.data(), blob.data() + blob.size()};
+    while (c.b < c.e) {
+        std::int64_t num = 0;
+        int wt3 = 0;
+        if (!rd_tag(c, num, wt3)) return wire::decode_error::bad_varint;
+        occ_status st{wire::decode_error::ok, true};
+        if (num == 1)      st = validate_entry_value<KC>(c, wt3);
+        else if (num == 2) st = validate_entry_value<VC>(c, wt3);
+        if (st.skip_as_unknown) {
+            if (!rd_skip(c, wt3)) return wire::decode_error::truncated;
+        } else if (st.err != wire::decode_error::ok) {
+            return st.err;
+        }
+    }
+    return wire::decode_error::ok;
+}
+
+// Is field I's type a message this schema's file declares? Only then can the
+// nested payload be validated against a schema rather than structurally.
 template <typename Schema, std::size_t I>
-[[nodiscard]] inline wire::decode_error::kind validate_occurrence(cur& c, int wt3) noexcept {
+[[nodiscard]] consteval bool has_sub_schema() noexcept {
+    if constexpr (SchemaWithAst<Schema>) {
+        const auto file = Schema::get_file();
+        return Schema::find_msg_in(file, Schema::get_field(I).type) != nullptr;
+    } else {
+        return false;
+    }
+}
+
+template <typename Schema, std::size_t I>
+using sub_schema_t = ::ctpb::parse<Schema::proto_source,
+                                   to_fixed_string<64>(Schema::get_field(I).type)>;
+
+// Validates one occurrence of field I (cursor positioned after the tag).
+// On a wire-type mismatch the cursor is left where it was, so the caller can
+// skip the occurrence as though the field were unknown.
+template <typename Schema, std::size_t I, int Depth>
+[[nodiscard]] inline occ_status validate_occurrence(cur& c, int wt3) noexcept {
     constexpr auto info = Schema::get_field(I);
-    constexpr field_cat cat = categorize(info.is_submessage, info.is_enum, as_sv(info.type));
+    constexpr field_cat cat = resolve_cat<Schema, I>();
     if constexpr (is_packable(cat)) {
         return validate_packable<cat>(c, wt3, info.is_repeated);
     } else {
-        if (wt3 != 2) return wire::decode_error::bad_wire_type;
+        if (wt3 != 2) return occ_status{wire::decode_error::ok, true};
         std::span<const std::byte> blob{};
-        if (!rd_blob(c, blob)) return wire::decode_error::truncated;
+        if (!rd_blob(c, blob)) return occ_status{wire::decode_error::truncated, false};
         if constexpr (cat == field_cat::utf8) {
             const std::string_view sv{reinterpret_cast<const char*>(blob.data()), blob.size()};
-            if (!valid_utf8_bytes(sv)) return wire::decode_error::invalid_utf8;
+            if (!valid_utf8_bytes(sv)) return occ_status{wire::decode_error::invalid_utf8, false};
+        } else if constexpr (cat == field_cat::map_entry) {
+            constexpr field_cat kc = resolve_cat_name<Schema>(as_sv(info.key_type));
+            constexpr field_cat vc = resolve_cat_name<Schema>(as_sv(info.value_type));
+            if (const auto k = validate_map_entry<kc, vc>(blob); k != wire::decode_error::ok) {
+                return occ_status{k, false};
+            }
         } else if constexpr (cat == field_cat::submessage) {
-            if (const auto k = validate_structure(blob); k != wire::decode_error::ok) return k;
+            if constexpr (Depth > 0 && has_sub_schema<Schema, I>()) {
+                const auto k = validate_payload<sub_schema_t<Schema, I>, Depth - 1>(blob);
+                if (k != wire::decode_error::ok) return occ_status{k, false};
+            } else {
+                if (const auto k = validate_structure(blob); k != wire::decode_error::ok) {
+                    return occ_status{k, false};
+                }
+            }
         }
-        return wire::decode_error::ok;
+        return occ_status{};
     }
 }
 
-template <typename Schema>
+template <typename Schema, int Depth>
 [[nodiscard]] inline wire::decode_error::kind validate_payload(
         std::span<const std::byte> bytes) noexcept {
-    constexpr std::size_t count = Schema::field_count();
+    constexpr std::size_t count = schema_field_total<Schema>();
     cur c{bytes.data(), bytes.data() + bytes.size()};
     while (c.b < c.e) {
         std::int64_t num = 0;
@@ -386,22 +569,22 @@ template <typename Schema>
         if (!rd_tag(c, num, wt3)) return wire::decode_error::bad_varint;
 
         bool matched = false;
-        wire::decode_error::kind result = wire::decode_error::ok;
+        occ_status result{};
         [&]<std::size_t... Is>(std::index_sequence<Is...>) {
             ([&] {
                 if (matched) return;
                 constexpr auto info = Schema::get_field(Is);
                 if (num == info.number) {
                     matched = true;
-                    result = validate_occurrence<Schema, Is>(c, wt3);
+                    result = validate_occurrence<Schema, Is, Depth>(c, wt3);
                 }
             }(), ...);
         }(std::make_index_sequence<count>{});
 
-        if (!matched) {
+        if (!matched || result.skip_as_unknown) {
             if (!rd_skip(c, wt3)) return wire::decode_error::truncated;
-        } else if (result != wire::decode_error::ok) {
-            return result;
+        } else if (result.err != wire::decode_error::ok) {
+            return result.err;
         }
     }
     return wire::decode_error::ok;
@@ -421,8 +604,10 @@ public:
     [[nodiscard]] constexpr std::span<const std::byte> bytes() const noexcept { return bytes_; }
     [[nodiscard]] constexpr bool empty() const noexcept { return bytes_.empty(); }
 
-    // Reinterpret as a typed message view. No re-validation; the enclosing
-    // buffer was already validated structurally.
+    // Reinterpret as a typed message view. No re-validation here: the payload
+    // was validated when the enclosing message was, against SubSchema's own
+    // schema if it sat within view_nest_limit levels of the top and
+    // structurally (framing only) if it sat below that.
     template <typename SubSchema>
     [[nodiscard]] constexpr msg_view<SubSchema> view() const noexcept {
         return msg_view<SubSchema>{bytes_};
@@ -438,8 +623,7 @@ public:
     using schema_type = Schema;
     static constexpr std::size_t field_index = I;
     static constexpr auto info     = Schema::get_field(I);
-    static constexpr auto category = view_detail::categorize(
-        info.is_submessage, info.is_enum, view_detail::as_sv(info.type));
+    static constexpr auto category = view_detail::resolve_cat<Schema, I>();
     static constexpr bool repeated = info.is_repeated;
 
     using element_type = view_detail::elem_type_t<category>;
@@ -503,7 +687,10 @@ public:
                         static_cast<void>(view_detail::read_scalar<category>(scan_, cur_));
                         return;
                     }
-                    if (wt3 == 2) {
+                    // A packed batch is only legal for a repeated field;
+                    // on a singular one validation skipped it as unknown, so
+                    // reading must not turn it into elements either.
+                    if (wt3 == 2 && repeated) {
                         std::span<const std::byte> blob{};
                         if (!view_detail::rd_blob(scan_, blob)) break;
                         if (blob.empty()) continue; // empty packed batch
@@ -512,9 +699,16 @@ public:
                         if (view_detail::read_scalar<category>(seg_, cur_)) return;
                         break;
                     }
-                    break; // wrong wire type — validation rejected this already
+                    // Wrong wire type for this field: validation skipped the
+                    // occurrence as unknown, so reading skips it too and keeps
+                    // going — later occurrences are still this field's.
+                    if (!view_detail::rd_skip(scan_, wt3)) break;
+                    continue;
                 } else {
-                    if (wt3 != 2) break;
+                    if (wt3 != 2) {
+                        if (!view_detail::rd_skip(scan_, wt3)) break;
+                        continue;
+                    }
                     std::span<const std::byte> blob{};
                     if (!view_detail::rd_blob(scan_, blob)) break;
                     if constexpr (category == view_detail::field_cat::utf8) {
@@ -560,6 +754,10 @@ public:
     // ------------------------------------------------------------------
     // Singular access
     // ------------------------------------------------------------------
+    // Last occurrence wins. For scalars and strings that is what proto3 says.
+    // For a message-typed field proto3 says merge the occurrences instead,
+    // which a borrowing view cannot do without storage of its own: iterate the
+    // field to reach every occurrence and merge them yourself.
     [[nodiscard]] element_type value() const {
         static_assert(!repeated, "repeated field: iterate the view instead of calling value()");
         return scan_singular();
@@ -567,15 +765,24 @@ public:
 
     operator element_type() const { return value(); }
 
-    // Presence on the wire (proto3 implicit presence: absent => default value).
+    // Presence on the wire (proto3 implicit presence: absent => default
+    // value). An occurrence carrying a wire type this field never uses does
+    // not count as presence, because reading skips it as an unknown field.
     [[nodiscard]] bool present() const {
         view_detail::cur c{payload_.data(), payload_.data() + payload_.size()};
         while (c.b < c.e) {
             std::int64_t num = 0;
             int wt3 = 0;
             if (!view_detail::rd_tag(c, num, wt3)) return false;
-            if (num == info.number) return true;
-            static_cast<void>(view_detail::rd_skip(c, wt3));
+            if (num == info.number) {
+                if constexpr (view_detail::is_packable(category)) {
+                    if (wt3 == view_detail::single_wt3(category)) return true;
+                    if (wt3 == 2 && repeated) return true;
+                } else {
+                    if (wt3 == 2) return true;
+                }
+            }
+            if (!view_detail::rd_skip(c, wt3)) return false;
         }
         return false;
     }
@@ -608,7 +815,12 @@ private:
                     static_cast<void>(view_detail::rd_skip(c, wt3));
                 }
             } else {
-                if (wt3 != 2) break;
+                if (wt3 != 2) {
+                    // Wire type this field never uses: skip it as unknown and
+                    // keep scanning, so a later valid occurrence still wins.
+                    if (!view_detail::rd_skip(c, wt3)) break;
+                    continue;
+                }
                 std::span<const std::byte> blob{};
                 if (!view_detail::rd_blob(c, blob)) break;
                 if constexpr (category == view_detail::field_cat::utf8) {
@@ -634,12 +846,39 @@ namespace view_detail {
 
 template <typename Schema, fixed_string Name>
 [[nodiscard]] consteval std::size_t find_field() noexcept {
-    constexpr std::size_t count = Schema::field_count();
     const std::string_view wanted = as_sv(Name);
-    for (std::size_t i = 0; i < count; ++i) {
-        if (as_sv(Schema::get_field(i).name) == wanted) return i;
+    if constexpr (SchemaWithAst<Schema>) {
+        // One parse for the whole lookup. Schema::get_field() re-parses the
+        // schema on every call, so asking it once per field made name lookup
+        // quadratic in schema size and ran a 20-field message into the
+        // compiler's default constexpr step limit.
+        const auto file = Schema::get_file();
+        if (const auto* m = Schema::find_msg_in(file, as_sv(Schema::message_name))) {
+            for (std::size_t i = 0; i < m->fields.size(); ++i) {
+                if (m->fields[i].name && *m->fields[i].name == wanted) return i;
+            }
+            // Same order get_field() uses past the declared fields: maps, then
+            // the oneof branches in declaration order.
+            std::size_t base = m->fields.size();
+            for (std::size_t i = 0; i < m->maps.size(); ++i) {
+                if (m->maps[i].name == wanted) return base + i;
+            }
+            base += m->maps.size();
+            for (std::size_t o = 0; o < m->oneofs.size(); ++o) {
+                for (std::size_t b = 0; b < m->oneofs[o].branches.size(); ++b) {
+                    if (m->oneofs[o].branches[b].name == wanted) return base + b;
+                }
+                base += m->oneofs[o].branches.size();
+            }
+        }
+        return static_cast<std::size_t>(-1);
+    } else {
+        constexpr std::size_t count = schema_field_total<Schema>();
+        for (std::size_t i = 0; i < count; ++i) {
+            if (as_sv(Schema::get_field(i).name) == wanted) return i;
+        }
+        return static_cast<std::size_t>(-1);
     }
-    return static_cast<std::size_t>(-1);
 }
 
 } // namespace view_detail
@@ -648,7 +887,7 @@ template <typename Schema>
 class msg_view {
 public:
     using schema_type = Schema;
-    static constexpr std::size_t field_count = Schema::field_count();
+    static constexpr std::size_t field_count = view_detail::schema_field_total<Schema>();
 
     constexpr msg_view() = default;
     constexpr explicit msg_view(std::span<const std::byte> payload) : payload_(payload) {}
@@ -690,9 +929,28 @@ consteval auto view_schema_pick() noexcept {
 template <typename T>
 using view_schema_t = typename decltype(view_schema_pick<T>())::type;
 
+#if defined(__has_cpp_attribute)
+#  if __has_cpp_attribute(clang::lifetimebound)
+#    define CTPB_LIFETIMEBOUND [[clang::lifetimebound]]
+#  elif __has_cpp_attribute(msvc::lifetimebound)
+#    define CTPB_LIFETIMEBOUND [[msvc::lifetimebound]]
+#  endif
+#endif
+#ifndef CTPB_LIFETIMEBOUND
+#  define CTPB_LIFETIMEBOUND
+#endif
+
+// The view borrows: it never owns the bytes it reads. Passing a container that
+// dies at the end of the full expression leaves every later read dangling, so
+// that call is deleted rather than diagnosed after the fact. Borrowed ranges
+// (span, string_view) and lvalues of any container are unaffected.
+template <typename T, typename R>
+    requires std::ranges::contiguous_range<R> && (!std::ranges::borrowed_range<R>)
+auto decode_view(R&&) = delete;
+
 template <typename T>
 [[nodiscard]] inline std::expected<msg_view<view_schema_t<T>>, wire::decode_error>
-decode_view(std::span<const std::byte> bytes) {
+decode_view(std::span<const std::byte> bytes CTPB_LIFETIMEBOUND) {
     using S = view_schema_t<T>;
     if (const auto k = view_detail::validate_payload<S>(bytes); k != wire::decode_error::ok) {
         wire::decode_error err{};
@@ -705,7 +963,9 @@ decode_view(std::span<const std::byte> bytes) {
 // ---------------------------------------------------------------------------
 // P2996 dot-syntax view: a generated aggregate of field_view members.
 // ---------------------------------------------------------------------------
-#if defined(__cpp_impl_reflection)
+// Gated on the same macro that decides whether reflection.hpp included <meta>,
+// so this block cannot compile against a <meta> that was never included.
+#if CTPB_HAS_P2996
 namespace reflect_detail {
 
 template <typename V, std::size_t I>
@@ -769,6 +1029,6 @@ decode_dot_view(std::span<const std::byte> bytes) {
     }(std::make_index_sequence<count>{});
     return v;
 }
-#endif // defined(__cpp_impl_reflection)
+#endif // CTPB_HAS_P2996
 
 } // namespace ctpb

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -17,11 +18,41 @@
 #include "parser.hpp"
 #include "wire.hpp"
 
-#if defined(__cpp_reflection)
-#include <meta>
-#define CTPB_HAS_P2996 1
+// Is P2996 static reflection actually usable in this translation unit?
+//
+// Not "does the compiler have a reflection branch" — the Bloomberg clang-p2996
+// build this project is developed against defines no reflection feature-test
+// macro at all, so gating on __cpp_reflection silently selected the C++20
+// fallback everywhere, including in the benchmark builds. Two things are
+// needed and both are checked: the compiler must have reflection enabled
+// (-freflection), and the standard library in use must ship <meta> — it lives
+// in the libc++ tree, so a build that asks for -stdlib=libstdc++ does not get
+// it. Define CTPB_HAS_P2996 yourself to override the decision.
+#if defined(__has_feature)
+#  define CTPB_DETECT_REFLECTION __has_feature(reflection)
 #else
-#define CTPB_HAS_P2996 0
+#  define CTPB_DETECT_REFLECTION 0
+#endif
+#if defined(__has_include)
+#  if __has_include(<meta>)
+#    define CTPB_DETECT_META_HEADER 1
+#  else
+#    define CTPB_DETECT_META_HEADER 0
+#  endif
+#else
+#  define CTPB_DETECT_META_HEADER 0
+#endif
+
+#if !defined(CTPB_HAS_P2996)
+#  if (defined(__cpp_reflection) || CTPB_DETECT_REFLECTION) && CTPB_DETECT_META_HEADER
+#    define CTPB_HAS_P2996 1
+#  else
+#    define CTPB_HAS_P2996 0
+#  endif
+#endif
+
+#if CTPB_HAS_P2996
+#include <meta>
 #endif
 
 namespace ctpb {
@@ -33,14 +64,24 @@ template <std::size_t N>
 struct fixed_string {
     char buf[N]{};
 
+    // to_fixed_string() and anything else that fills the buffer afterwards
+    // needs this; without it `fixed_string<64>{}` does not compile, which took
+    // ctpb::message<> and any derived schema name with it.
+    constexpr fixed_string() = default;
+
     constexpr fixed_string(const char (&str)[N]) {
         for (std::size_t i = 0; i < N; ++i) {
             buf[i] = str[i];
         }
     }
 
+    // Trailing NULs are padding, not content: to_fixed_string() fills a fixed
+    // 64-byte buffer, and trimming only the last one left a name like
+    // "Inner\0\0..." that no message lookup could ever match.
     [[nodiscard]] constexpr std::string_view view() const noexcept {
-        return std::string_view(buf, N > 0 && buf[N - 1] == '\0' ? N - 1 : N);
+        std::size_t len = N;
+        while (len > 0 && buf[len - 1] == '\0') --len;
+        return std::string_view(buf, len);
     }
 };
 
@@ -67,6 +108,15 @@ struct field_info {
     bool             is_optional = false;
     bool             is_enum = false;
     bool             is_submessage = false;
+    // A map<K,V> field: on the wire a repeated entry message with the key at
+    // field 1 and the value at field 2. `type` is empty for one of these.
+    bool             is_map = false;
+    std::string_view key_type;
+    std::string_view value_type;
+    // Set for a field declared inside a oneof. The branches share the storage
+    // but each is an ordinary field on the wire.
+    bool             is_oneof_branch = false;
+    std::string_view oneof_name;
 };
 
 // ---------------------------------------------------------------------------
@@ -74,6 +124,11 @@ struct field_info {
 // ---------------------------------------------------------------------------
 template <fixed_string ProtoSource, fixed_string MessageName>
 struct parse {
+    // The template arguments, readable by callers that need to build a sibling
+    // schema — the view layer resolves a nested message type this way.
+    static constexpr auto proto_source = ProtoSource;
+    static constexpr auto message_name = MessageName;
+
     static consteval ast::file get_file() {
         return parser(ProtoSource.view()).parse_file();
     }
@@ -113,40 +168,162 @@ struct parse {
         return nullptr;
     }
 
+    // Declared fields only. Type synthesis and the C++20 member mapping both
+    // index by this, so it deliberately excludes maps and oneof branches.
     static consteval std::size_t field_count() {
         auto f = get_file();
         const auto* m = find_msg_in(f, MessageName.view());
         return m ? m->fields.size() : 0;
     }
 
+    // Everything that occupies a field number on the wire: the declared
+    // fields, then the map fields, then the oneof branches. A decoder that
+    // walks this sees a map or a oneof branch as the field it is, rather than
+    // as an unknown field to be skipped unchecked.
+    static consteval std::size_t total_field_count() {
+        auto f = get_file();
+        const auto* m = find_msg_in(f, MessageName.view());
+        if (!m) return 0;
+        std::size_t n = m->fields.size() + m->maps.size();
+        for (std::size_t i = 0; i < m->oneofs.size(); ++i) n += m->oneofs[i].branches.size();
+        return n;
+    }
+
+    static consteval std::string_view type_leaf(std::string_view t) {
+        const auto pos = t.rfind('.');
+        return pos == std::string_view::npos ? t : t.substr(pos + 1);
+    }
+
+    static consteval bool enum_declared_in(const ast::message& m, std::string_view leaf) {
+        for (std::size_t i = 0; i < m.nested_enums.size(); ++i) {
+            if (m.nested_enums[i].name == leaf) return true;
+        }
+        for (std::size_t i = 0; i < m.nested_messages.size(); ++i) {
+            if (enum_declared_in(m.nested_messages[i], leaf)) return true;
+        }
+        return false;
+    }
+
+    // Resolves a field's type name to enum or message. Searching only the
+    // file's top-level declarations, as this once did, left every type
+    // declared inside a message unclassified: a nested enum then decoded as a
+    // length-delimited blob and a nested message was typed as std::string.
+    static consteval void classify_type(const ast::file& f, const ast::message* owner,
+                                        std::string_view type_name, field_info& info) {
+        const std::string_view leaf = type_leaf(type_name);
+        if (owner) {
+            for (std::size_t i = 0; i < owner->nested_enums.size(); ++i) {
+                if (owner->nested_enums[i].name == leaf) { info.is_enum = true; return; }
+            }
+            for (std::size_t i = 0; i < owner->nested_messages.size(); ++i) {
+                if (owner->nested_messages[i].name == leaf) { info.is_submessage = true; return; }
+            }
+        }
+        for (std::size_t i = 0; i < f.top_level_enums.size(); ++i) {
+            if (f.top_level_enums[i].name == leaf) { info.is_enum = true; return; }
+        }
+        for (std::size_t i = 0; i < f.messages.size(); ++i) {
+            if (enum_declared_in(f.messages[i], leaf)) { info.is_enum = true; return; }
+        }
+        for (std::size_t i = 0; i < f.messages.size(); ++i) {
+            if (find_msg_recursive(f.messages[i], leaf)) { info.is_submessage = true; return; }
+        }
+    }
+
+    // Every declared field from a single parse. get_field() re-parses the
+    // schema on each call, so asking it once per field costs N parses inside
+    // one constant evaluation: type synthesis for a 25-field message ran out
+    // of the compiler's default step budget that way.
+    static consteval std::vector<field_info> declared_fields() {
+        std::vector<field_info> out;
+        auto f = get_file();
+        const auto* m = find_msg_in(f, MessageName.view());
+        if (!m) return out;
+        for (std::size_t i = 0; i < m->fields.size(); ++i) {
+            const auto& fld = m->fields[i];
+            field_info info{};
+            info.name = fld.name.value_or("");
+            info.number = fld.number;
+            info.type = fld.type.name;
+            info.is_repeated = (fld.label == ast::field_label::repeated);
+            info.is_optional = fld.proto3_optional;
+            classify_type(f, m, fld.type.name, info);
+            out.push_back(info);
+        }
+        return out;
+    }
+
     static consteval field_info get_field(std::size_t idx) {
         auto f = get_file();
         const auto* m = find_msg_in(f, MessageName.view());
-        if (!m || idx >= m->fields.size()) return field_info{};
-        const auto& fld = m->fields[idx];
-        field_info info{};
-        info.name = fld.name.value_or("");
-        info.number = fld.number;
-        info.type = fld.type.name;
-        info.is_repeated = (fld.label == ast::field_label::repeated);
-        info.is_optional = fld.proto3_optional;
+        if (!m) return field_info{};
 
-        // Check if enum or submessage
-        for (std::size_t i = 0; i < f.top_level_enums.size(); ++i) {
-            if (f.top_level_enums[i].name == fld.type.name) {
-                info.is_enum = true;
-                break;
-            }
+        if (idx < m->fields.size()) {
+            const auto& fld = m->fields[idx];
+            field_info info{};
+            info.name = fld.name.value_or("");
+            info.number = fld.number;
+            info.type = fld.type.name;
+            info.is_repeated = (fld.label == ast::field_label::repeated);
+            info.is_optional = fld.proto3_optional;
+            classify_type(f, m, fld.type.name, info);
+            return info;
         }
-        for (std::size_t i = 0; i < f.messages.size(); ++i) {
-            if (f.messages[i].name == fld.type.name) {
-                info.is_submessage = true;
-                break;
-            }
+
+        std::size_t rest = idx - m->fields.size();
+        if (rest < m->maps.size()) {
+            const auto& mp = m->maps[rest];
+            field_info info{};
+            info.name = mp.name;
+            info.number = mp.number;
+            info.is_repeated = true;
+            info.is_map = true;
+            info.key_type = mp.key_type.name;
+            info.value_type = mp.value_type.name;
+            return info;
         }
-        return info;
+        rest -= m->maps.size();
+
+        for (std::size_t i = 0; i < m->oneofs.size(); ++i) {
+            const auto& o = m->oneofs[i];
+            if (rest < o.branches.size()) {
+                const auto& br = o.branches[rest];
+                field_info info{};
+                info.name = br.name;
+                info.number = br.number;
+                info.type = br.type.name;
+                info.is_oneof_branch = true;
+                info.oneof_name = o.name;
+                classify_type(f, m, br.type.name, info);
+                return info;
+            }
+            rest -= o.branches.size();
+        }
+        return field_info{};
     }
 };
+
+// The schema's fields as a constant table.
+//
+// Every consteval accessor on `parse` re-parses the .proto text, because a
+// constexpr function cannot cache anything across calls. Reading one field per
+// call therefore costs one parse per field, which is quadratic in the schema
+// and is what used to exhaust the compiler's step budget on a 25-field
+// message. A variable template is initialised once per schema per translation
+// unit, so everything that needs per-field metadata indexes this instead.
+template <typename Schema, std::size_t N>
+consteval std::array<field_info, N> make_field_table() {
+    std::array<field_info, N> table{};
+    const auto fields = Schema::declared_fields();
+    for (std::size_t i = 0; i < N && i < fields.size(); ++i) table[i] = fields[i];
+    return table;
+}
+
+template <typename Schema>
+inline constexpr auto field_table = make_field_table<Schema, Schema::field_count()>();
+
+template <typename Schema, std::size_t I>
+inline constexpr field_info field_at = field_table<Schema>[I];
 
 // Forward declaration of message_impl
 template <fixed_string ProtoSource, fixed_string CanonicalName>
@@ -222,14 +399,48 @@ namespace detail {
 // Wire size / write helpers for one element of a packed repeated scalar field
 // (proto3 packs repeated int/enum/float/double into a single length-delimited
 // field; strings, bytes and submessages never pack, and are handled elsewhere).
+// proto3 gives a scalar four possible encodings, and the C++ member type does
+// not distinguish them: int32, sint32 and sfixed32 are all std::int32_t, while
+// their wire forms are a varint, a zigzag varint and four raw bytes. Every
+// size, write and read decision below therefore keys on the declared proto
+// type. Reading it off the C++ type alone is what made fixed32, sfixed32 and
+// sfixed64 fields encode as varints and decode as zero.
+enum class scalar_enc { varint, zigzag32, zigzag64, fix32, fix64 };
+
+constexpr scalar_enc enc_of(std::string_view t) noexcept {
+    if (t == "sint32") return scalar_enc::zigzag32;
+    if (t == "sint64") return scalar_enc::zigzag64;
+    if (t == "fixed32" || t == "sfixed32") return scalar_enc::fix32;
+    if (t == "fixed64" || t == "sfixed64") return scalar_enc::fix64;
+    return scalar_enc::varint;
+}
+
+constexpr wire::wire_type wire_type_of(scalar_enc e) noexcept {
+    switch (e) {
+        case scalar_enc::fix32: return wire::wire_type::fixed32;
+        case scalar_enc::fix64: return wire::wire_type::fixed64;
+        default:                return wire::wire_type::varint;
+    }
+}
+
+constexpr bool is_signed_fixed(std::string_view t) noexcept {
+    return t == "sfixed32" || t == "sfixed64";
+}
+
 template <typename Elem>
 inline std::size_t packed_elem_size(const field_info& info, const Elem& item) {
     if constexpr (std::is_floating_point_v<Elem>) {
         return sizeof(Elem) == 4 ? 4 : 8;
     } else {
-        if (info.type == "sint32") return wire::varint_size(wire::encode_zigzag32(static_cast<std::int32_t>(item)));
-        if (info.type == "sint64") return wire::varint_size(wire::encode_zigzag64(static_cast<std::int64_t>(item)));
-        return wire::varint_size(static_cast<std::uint64_t>(item));
+        switch (enc_of(info.type)) {
+            case scalar_enc::zigzag32:
+                return wire::varint_size(wire::encode_zigzag32(static_cast<std::int32_t>(item)));
+            case scalar_enc::zigzag64:
+                return wire::varint_size(wire::encode_zigzag64(static_cast<std::int64_t>(item)));
+            case scalar_enc::fix32: return 4;
+            case scalar_enc::fix64: return 8;
+            default: return wire::varint_size(static_cast<std::uint64_t>(item));
+        }
     }
 }
 
@@ -239,9 +450,18 @@ inline std::byte* write_packed_elem_to(std::byte* dest, const field_info& info, 
         if constexpr (sizeof(Elem) == 4) return wire::write_float_to(dest, static_cast<float>(item));
         else return wire::write_double_to(dest, static_cast<double>(item));
     } else {
-        if (info.type == "sint32") return wire::write_zigzag32_to(dest, static_cast<std::int32_t>(item));
-        if (info.type == "sint64") return wire::write_zigzag64_to(dest, static_cast<std::int64_t>(item));
-        return wire::write_varint_to(dest, static_cast<std::uint64_t>(item));
+        switch (enc_of(info.type)) {
+            case scalar_enc::zigzag32:
+                return wire::write_zigzag32_to(dest, static_cast<std::int32_t>(item));
+            case scalar_enc::zigzag64:
+                return wire::write_zigzag64_to(dest, static_cast<std::int64_t>(item));
+            case scalar_enc::fix32:
+                return wire::write_fixed32_to(dest, static_cast<std::uint32_t>(item));
+            case scalar_enc::fix64:
+                return wire::write_fixed64_to(dest, static_cast<std::uint64_t>(item));
+            default:
+                return wire::write_varint_to(dest, static_cast<std::uint64_t>(item));
+        }
     }
 }
 
@@ -259,12 +479,18 @@ inline std::size_t field_byte_size(const field_info& info, const T& value) {
         return 0;
     } else if constexpr (std::is_integral_v<T> || std::is_enum_v<T>) {
         if (value != 0) {
-            if (info.type == "sint32") {
-                return wire::tag_size(info.number) + wire::varint_size(wire::encode_zigzag32(static_cast<std::int32_t>(value)));
-            } else if (info.type == "sint64") {
-                return wire::tag_size(info.number) + wire::varint_size(wire::encode_zigzag64(static_cast<std::int64_t>(value)));
-            } else {
-                return wire::tag_size(info.number) + wire::varint_size(static_cast<std::uint64_t>(value));
+            switch (enc_of(info.type)) {
+                case scalar_enc::zigzag32:
+                    return wire::tag_size(info.number)
+                         + wire::varint_size(wire::encode_zigzag32(static_cast<std::int32_t>(value)));
+                case scalar_enc::zigzag64:
+                    return wire::tag_size(info.number)
+                         + wire::varint_size(wire::encode_zigzag64(static_cast<std::int64_t>(value)));
+                case scalar_enc::fix32: return wire::tag_size(info.number) + 4;
+                case scalar_enc::fix64: return wire::tag_size(info.number) + 8;
+                default:
+                    return wire::tag_size(info.number)
+                         + wire::varint_size(static_cast<std::uint64_t>(value));
             }
         }
         return 0;
@@ -317,15 +543,19 @@ inline std::byte* encode_field_to_ptr(std::byte* dest, const field_info& info, c
         }
     } else if constexpr (std::is_integral_v<T> || std::is_enum_v<T>) {
         if (value != 0) {
-            if (info.type == "sint32") {
-                dest = wire::write_tag_to(dest, info.number, wire::wire_type::varint);
-                dest = wire::write_zigzag32_to(dest, static_cast<std::int32_t>(value));
-            } else if (info.type == "sint64") {
-                dest = wire::write_tag_to(dest, info.number, wire::wire_type::varint);
-                dest = wire::write_zigzag64_to(dest, static_cast<std::int64_t>(value));
-            } else {
-                dest = wire::write_tag_to(dest, info.number, wire::wire_type::varint);
-                dest = wire::write_varint_to(dest, static_cast<std::uint64_t>(value));
+            const auto enc = enc_of(info.type);
+            dest = wire::write_tag_to(dest, info.number, wire_type_of(enc));
+            switch (enc) {
+                case scalar_enc::zigzag32:
+                    dest = wire::write_zigzag32_to(dest, static_cast<std::int32_t>(value)); break;
+                case scalar_enc::zigzag64:
+                    dest = wire::write_zigzag64_to(dest, static_cast<std::int64_t>(value)); break;
+                case scalar_enc::fix32:
+                    dest = wire::write_fixed32_to(dest, static_cast<std::uint32_t>(value)); break;
+                case scalar_enc::fix64:
+                    dest = wire::write_fixed64_to(dest, static_cast<std::uint64_t>(value)); break;
+                default:
+                    dest = wire::write_varint_to(dest, static_cast<std::uint64_t>(value)); break;
             }
         }
     } else if constexpr (std::is_floating_point_v<T>) {
@@ -395,12 +625,28 @@ inline bool read_packed_elem(wire::reader& r, const field_info& info, auto& out)
             double v = 0; if (!r.read_double(v)) return false; out = v; return true;
         }
     } else {
-        if (info.type == "sint32") {
-            std::int32_t v = 0; if (!r.read_zigzag32(v)) return false; out = static_cast<Elem>(v); return true;
-        } else if (info.type == "sint64") {
-            std::int64_t v = 0; if (!r.read_zigzag64(v)) return false; out = static_cast<Elem>(v); return true;
-        } else {
-            std::uint64_t v = 0; if (!r.read_varint(v)) return false; out = static_cast<Elem>(v); return true;
+        switch (enc_of(info.type)) {
+            case scalar_enc::zigzag32: {
+                std::int32_t v = 0; if (!r.read_zigzag32(v)) return false; out = static_cast<Elem>(v); return true;
+            }
+            case scalar_enc::zigzag64: {
+                std::int64_t v = 0; if (!r.read_zigzag64(v)) return false; out = static_cast<Elem>(v); return true;
+            }
+            case scalar_enc::fix32: {
+                std::uint32_t v = 0; if (!r.read_fixed32(v)) return false;
+                out = is_signed_fixed(info.type) ? static_cast<Elem>(static_cast<std::int32_t>(v))
+                                                 : static_cast<Elem>(v);
+                return true;
+            }
+            case scalar_enc::fix64: {
+                std::uint64_t v = 0; if (!r.read_fixed64(v)) return false;
+                out = is_signed_fixed(info.type) ? static_cast<Elem>(static_cast<std::int64_t>(v))
+                                                 : static_cast<Elem>(v);
+                return true;
+            }
+            default: {
+                std::uint64_t v = 0; if (!r.read_varint(v)) return false; out = static_cast<Elem>(v); return true;
+            }
         }
     }
 }
@@ -441,23 +687,36 @@ inline bool decode_field_by_info(wire::reader& r, wire::wire_type wt, const fiel
             return true;
         }
     } else if constexpr (std::is_integral_v<T> || std::is_enum_v<T>) {
-        if (wt == wire::wire_type::varint) {
-            if (info.type == "sint32") {
-                std::int32_t v = 0;
-                if (!r.read_zigzag32(v)) return false;
-                value = static_cast<T>(v);
-                return true;
-            } else if (info.type == "sint64") {
-                std::int64_t v = 0;
-                if (!r.read_zigzag64(v)) return false;
-                value = static_cast<T>(v);
-                return true;
-            } else {
-                std::uint64_t v = 0;
-                if (!r.read_varint(v)) return false;
-                value = static_cast<T>(v);
-                return true;
-            }
+        const auto enc = enc_of(info.type);
+        // A field whose wire type does not match its declared type falls
+        // through to skip_field below, as an unknown field would.
+        if (wt == wire::wire_type::fixed32 && enc == scalar_enc::fix32) {
+            std::uint32_t v = 0;
+            if (!r.read_fixed32(v)) return false;
+            value = is_signed_fixed(info.type) ? static_cast<T>(static_cast<std::int32_t>(v))
+                                               : static_cast<T>(v);
+            return true;
+        } else if (wt == wire::wire_type::fixed64 && enc == scalar_enc::fix64) {
+            std::uint64_t v = 0;
+            if (!r.read_fixed64(v)) return false;
+            value = is_signed_fixed(info.type) ? static_cast<T>(static_cast<std::int64_t>(v))
+                                               : static_cast<T>(v);
+            return true;
+        } else if (wt == wire::wire_type::varint && enc == scalar_enc::zigzag32) {
+            std::int32_t v = 0;
+            if (!r.read_zigzag32(v)) return false;
+            value = static_cast<T>(v);
+            return true;
+        } else if (wt == wire::wire_type::varint && enc == scalar_enc::zigzag64) {
+            std::int64_t v = 0;
+            if (!r.read_zigzag64(v)) return false;
+            value = static_cast<T>(v);
+            return true;
+        } else if (wt == wire::wire_type::varint && enc == scalar_enc::varint) {
+            std::uint64_t v = 0;
+            if (!r.read_varint(v)) return false;
+            value = static_cast<T>(v);
+            return true;
         }
     } else if constexpr (std::is_floating_point_v<T>) {
         if constexpr (sizeof(T) == 4) {
@@ -509,9 +768,9 @@ inline bool decode_field_by_info(wire::reader& r, wire::wire_type wt, const fiel
                 return true;
             }
         } else if constexpr (detail::IsPackableScalar<Elem>) {
-            constexpr wire::wire_type unpacked_wt = std::is_floating_point_v<Elem>
+            const wire::wire_type unpacked_wt = std::is_floating_point_v<Elem>
                 ? (sizeof(Elem) == 4 ? wire::wire_type::fixed32 : wire::wire_type::fixed64)
-                : wire::wire_type::varint;
+                : wire_type_of(enc_of(info.type));
             if (wt == wire::wire_type::len) {
                 // Packed: one blob holding every element back to back (the proto3 default).
                 std::span<const std::byte> sub_bytes;
@@ -614,7 +873,7 @@ struct reflect_base {
         [&]<std::size_t... Is>(std::index_sequence<Is...>) {
             ([&]() {
                 if constexpr (Is < schema_field_count) {
-                    constexpr auto field = Schema::get_field(Is);
+                    constexpr auto field = field_at<Schema, Is>;
                     total += detail::field_byte_size(field, std::get<Is>(members));
                 }
             }(), ...);
@@ -632,7 +891,7 @@ struct reflect_base {
         [&]<std::size_t... Is>(std::index_sequence<Is...>) {
             ([&]() {
                 if constexpr (Is < schema_field_count) {
-                    constexpr auto field = Schema::get_field(Is);
+                    constexpr auto field = field_at<Schema, Is>;
                     dest = detail::encode_field_to_ptr(dest, field, std::get<Is>(members));
                 }
             }(), ...);
@@ -677,7 +936,7 @@ struct reflect_base {
             [&]<std::size_t... Is>(std::index_sequence<Is...>) {
                 ([&]() {
                     if constexpr (Is < schema_field_count) {
-                        constexpr auto field = Schema::get_field(Is);
+                        constexpr auto field = field_at<Schema, Is>;
                         if (num == field.number) {
                             auto why = wire::decode_error::truncated;
                             if (!detail::decode_field_by_info(r, wt, field, std::get<Is>(members), &why)) {
@@ -833,12 +1092,10 @@ namespace reflect {
 template <fixed_string ProtoSource, fixed_string MessageName>
 consteval auto complete_message_struct(std::meta::info incomplete_type) {
     using Schema = parse<ProtoSource, MessageName>;
-    constexpr auto count = Schema::field_count();
 
     std::vector<std::meta::info> members;
 
-    auto append_member = [&]<std::size_t I>() {
-        constexpr auto info = Schema::get_field(I);
+    for (const field_info& info : Schema::declared_fields()) {
         std::meta::info type_info = ^^int;
         if (info.type == "string") {
             type_info = ^^std::string;
@@ -860,6 +1117,9 @@ consteval auto complete_message_struct(std::meta::info incomplete_type) {
             type_info = ^^std::vector<std::byte>;
         }
 
+        // An enum field keeps the default `int` above: proto3 encodes enums as
+        // varints, and the synthesised aggregate has no enum type to name.
+
         if (info.is_repeated) {
             type_info = std::meta::substitute(^^std::vector, {type_info});
         }
@@ -868,11 +1128,7 @@ consteval auto complete_message_struct(std::meta::info incomplete_type) {
             type_info,
             {.name = info.name}
         ));
-    };
-
-    [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-        (append_member.template operator()<Is>(), ...);
-    }(std::make_index_sequence<count>{});
+    }
 
     return std::meta::define_aggregate(incomplete_type, members);
 }
@@ -895,7 +1151,7 @@ consteval std::meta::info get_member_i() {
 template <typename T, std::size_t I>
 inline std::size_t field_byte_size_ith(const T& msg) {
     using Schema = typename message_schema_traits<T>::Schema;
-    constexpr auto f_info = Schema::get_field(I);
+    constexpr auto f_info = field_at<Schema, I>;
     constexpr auto m_info = get_member_i<T, I>();
     return detail::field_byte_size(f_info, msg.[:m_info:]);
 }
@@ -903,7 +1159,7 @@ inline std::size_t field_byte_size_ith(const T& msg) {
 template <typename T, std::size_t I>
 inline std::byte* encode_ith_field_to_ptr(const T& msg, std::byte* dest) {
     using Schema = typename message_schema_traits<T>::Schema;
-    constexpr auto f_info = Schema::get_field(I);
+    constexpr auto f_info = field_at<Schema, I>;
     constexpr auto m_info = get_member_i<T, I>();
     return detail::encode_field_to_ptr(dest, f_info, msg.[:m_info:]);
 }
@@ -911,7 +1167,7 @@ inline std::byte* encode_ith_field_to_ptr(const T& msg, std::byte* dest) {
 template <typename T, std::size_t I>
 inline bool decode_ith_field(T& msg, std::int64_t num, wire::wire_type wt, wire::reader& r, wire::decode_error& err) {
     using Schema = typename message_schema_traits<T>::Schema;
-    constexpr auto f_info = Schema::get_field(I);
+    constexpr auto f_info = field_at<Schema, I>;
     constexpr auto m_info = get_member_i<T, I>();
     if (num == f_info.number) {
         auto why = wire::decode_error::truncated;
@@ -1038,13 +1294,29 @@ inline std::vector<std::byte> encode(const T& msg) {
     }
 }
 
+// Decoding into a message the caller already owns.
+//
+// `decode<T>()` is the ordinary way in and returns the message by value. That
+// is not available everywhere: on the Bloomberg clang-p2996 branch this
+// project is developed against, returning a reflection-generated message by
+// value crashes the compiler outright (an assertion in
+// ClassTemplateSpecializationDecl::setPointOfInstantiation) as soon as the
+// message holds a repeated field, and so does wrapping it in std::expected.
+// Filling an existing object compiles and runs there, so every decoder is
+// written in this form and `decode<T>()` is a thin wrapper over it.
+template <typename T>
+requires (CustomDecodable<T>)
+inline wire::decode_error decode_into(T& msg, std::span<const std::byte> bytes) {
+    wire::decode_error err{};
+    msg.decode_from(bytes, err);
+    return err;
+}
+
 template <typename T>
 requires (CustomDecodable<T>)
 inline std::expected<T, wire::decode_error> decode(std::span<const std::byte> bytes) {
     T msg{};
-    wire::decode_error err{};
-    msg.decode_from(bytes, err);
-    if (err) {
+    if (const auto err = decode_into(msg, bytes); err) {
         return std::unexpected(err);
     }
     return msg;
@@ -1053,9 +1325,8 @@ inline std::expected<T, wire::decode_error> decode(std::span<const std::byte> by
 #if CTPB_HAS_P2996
 template <typename T>
 requires (HasSchemaTraits<T> && !CustomDecodable<T>)
-inline std::expected<T, wire::decode_error> decode(std::span<const std::byte> bytes) {
+inline wire::decode_error decode_into(T& msg, std::span<const std::byte> bytes) {
     using Schema = typename message_schema_traits<T>::Schema;
-    T msg{};
     wire::decode_error err{};
     constexpr auto count = Schema::field_count();
 
@@ -1069,7 +1340,7 @@ inline std::expected<T, wire::decode_error> decode(std::span<const std::byte> by
         wire::wire_type wt = wire::wire_type::varint;
         if (!r.read_tag(num, wt)) {
             err.err = wire::decode_error::bad_varint;
-            return std::unexpected(err);
+            return err;
         }
 
         bool matched = false;
@@ -1084,12 +1355,22 @@ inline std::expected<T, wire::decode_error> decode(std::span<const std::byte> by
         if (!matched) {
             if (!r.skip_field(wt)) {
                 err.err = wire::decode_error::truncated;
-                return std::unexpected(err);
+                return err;
             }
         }
     }
 
-    if (err) {
+    return err;
+}
+
+// Returns the message by value. On a toolchain with the defect described above
+// this overload cannot be instantiated for a message with a repeated field;
+// use decode_into() there.
+template <typename T>
+requires (HasSchemaTraits<T> && !CustomDecodable<T>)
+inline std::expected<T, wire::decode_error> decode(std::span<const std::byte> bytes) {
+    T msg{};
+    if (const auto err = decode_into(msg, bytes); err) {
         return std::unexpected(err);
     }
     return msg;

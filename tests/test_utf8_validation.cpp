@@ -66,7 +66,7 @@ std::vector<std::byte> field_bytes(std::uint32_t number, std::string_view payloa
 bool decodes(std::span<const std::byte> bytes, ctpb::wire::decode_error& err)
 {
     DocMessage msg{};
-    msg.decode_from(bytes, err);
+    err = ctpb::decode_into(msg, bytes);
     return !err;
 }
 
