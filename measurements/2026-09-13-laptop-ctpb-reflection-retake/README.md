@@ -218,12 +218,13 @@ to raise the number until it stops looking wrong. `grep -rl` over `measurements/
 files; four are restore artifacts and the rest are READMEs and method scripts that mention
 the string.
 
-One of the four also explains the state the machine is in today.
-`2026-09-06-laptop-ctpb-decode-experiments/raw/host-state.txt` reads
-`AFTER RESTORE: gov=powersave epp=performance` — the governor went back to its baseline and
-the energy-performance preference did not. So EPP has been left pinned since 6 September by
-an incomplete restore, and the governor was left pinned separately by the 7 September retake,
-which has no restore artifact at all. Two different sittings, two different halves.
+*Superseded — kept so the correction below has something to correct.* This paragraph
+originally read `2026-09-06-laptop-ctpb-decode-experiments/raw/host-state.txt` as an
+incomplete restore and concluded that EPP had been left pinned since 6 September and the
+governor since 7 September. Both halves were wrong. That file's own baseline was already
+`epp=performance`, so it restored exactly what it captured; and the host rebooted on
+2026-09-12, so nothing from either sitting can be standing. The live pinned state has a cause
+this record does not know. See *Two more corrections* below.
 
 **The cause is worth more than the correction.** The search that produced the wrong answer was
 
