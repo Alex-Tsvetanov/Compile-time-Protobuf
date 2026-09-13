@@ -1,4 +1,5 @@
 \section{Static Reflection and Type Generation}
+\label{sec:reflection}
 
 \subsection{P2996 Reflection Pipeline}
 Once the AST is parsed, \texttt{ctpb} maps the schema onto a native aggregate using \texttt{std::meta::info} reflection tokens and compile-time member descriptors. This is the step that replaces \texttt{protoc}: the struct is not written to disk and re-read, but constructed directly in the translation unit.

@@ -275,7 +275,7 @@ def add_table(caption, headers, rows, bold_first_col_rows=(), widths=None):
 
 
 # ============================================================ TITLE (1 column)
-add_p("Zero-Codegen Protocol Buffers with C++26 Static Reflection", style="paper title")
+add_p("Zero-Codegen Protocol Buffers via C++26 Static Reflection and Compile-Time Metaprogramming", style="paper title")
 
 add_p("Alex I. Tsvetanov", style="Author")
 add_p("Faculty of Computer Systems and Technologies", style="Affiliation")
@@ -589,8 +589,8 @@ add_p(
     "Every CPU ran at the `performance` scaling governor for the duration, as "
     "the run's own environment capture records. No frequency samples "
     "accompany this sitting's record. The timed work ran in a container image "
-    "built from the project's own recipe [6], using the experimental Clang 21 "
-    "branch that implements P2996, `-std=c++26 -freflection -O3`, and "
+    "built from the project's own recipe [6], using Bloomberg's experimental Clang 21 "
+    "fork implementing P2996R13, `-std=c++26 -freflection -O3`, and "
     "Protobuf 3.21.12.",
     style="Body Text")
 add_p(
@@ -611,7 +611,8 @@ add_p(
     "of six retained trials). The parser is compiled as ordinary optimized code and "
     "timed at run time, so these figures bound the work the front end does per schema "
     "rather than measuring it inside constant evaluation, where the same code runs on "
-    "the compiler's interpreter.", style="Body Text")
+    "the compiler's interpreter. The front-end cost itself is measured end to "
+    "end under Build Cost below.", style="Body Text")
 add_table(
     "Parser Latency, Compiled as Ordinary Code, Median and Range of Six Trials",
     ["Schema", "Fields", "Latency / Parse", "Throughput"],
@@ -745,7 +746,14 @@ add_p(
 add_p("Wire Interoperability and Message Framing", style="heading 2")
 add_p(
     "Correctness was assessed through dual-direction interoperability testing "
-    "against `libprotobuf` 3.21.12 and the `protoc` code generator [1]. Messages "
+    "against `libprotobuf` 3.21.12 and the `protoc` code generator [1]. These tests "
+    "link the distribution `libprotobuf`, which is built against libstdc++, and "
+    "therefore compile the library's C++20 compatibility path rather than the "
+    "reflection path: on that path the members are declared by hand, so enum and "
+    "nested-message fields carry their proper types. The reflection path synthesizes "
+    "those two as int (Section V), and the nested and enum cases below are "
+    "consequently evidence for the compatibility path only. The wire engine is shared "
+    "by both paths; the type mapping is not. Messages "
     "serialized by the Google `SerializeToString()` decode through "
     "`ctpb::decode<T>()` for the exercised cases across scalars, Zigzag integers, "
     "strings, enums, nested messages, `bytes` fields, and packed repeated "
@@ -796,7 +804,12 @@ add_p(
     "Buffers in general. Finally, the performance data comes from one host and "
     "a limited set of synthetic schemas and one 47-byte `Person` message. Future "
     "work targets the Well-Known Types (`Timestamp`, `Duration`), compile-time JSON "
-    "mapping, broader workload coverage, and asynchronous stub synthesis.",
+    "mapping, broader workload coverage including larger and nested messages, and "
+    "asynchronous stub synthesis. Two further directions are a hybrid mode that falls "
+    "back to `protoc`-generated types where no P2996 toolchain is available, and a "
+    "differential module that runs the existing bidirectional interoperability suite "
+    "and wire-parity checks against each new toolchain to detect discrepancies "
+    "introduced by compiler changes.",
     style="Body Text")
 
 # ============================================================ X. CONCLUSION
@@ -817,7 +830,10 @@ add_p(
     "reappears in the front end, where at 100 fields it exceeds it. "
     "These results show that static reflection can remove generated Protocol "
     "Buffers source for the evaluated schemas and toolchain while retaining tested "
-    "wire-format interoperability.",
+    "wire-format interoperability. The approach is aimed at teams for whom the "
+    "generator step is itself the cost: header-only library authors, embedded and "
+    "firmware builds without a host-side `protoc`, and monorepos contending with "
+    "generated-source churn.",
     style="Body Text")
 
 # ========================================================== ACKNOWLEDGMENT
