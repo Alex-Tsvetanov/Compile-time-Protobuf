@@ -205,11 +205,25 @@ command and is not mine to run mid-campaign.
 ## A correction this record owes to its own method note
 
 I told the writer that only one 6 September record carried restore evidence and named the
-path. **That was wrong: three do** —
+path. **That was wrong: four do** —
 `2026-09-06-laptop-p5-single-host/raw/host-state.txt:3`,
-`2026-09-06-laptop-ctpb-rerun-corrected/host-state/host-state-restored.txt`, and
-`2026-09-06-laptop-ctpb-decode-experiments/raw/host-state.txt`, each with its own
-`AFTER RESTORE … verification=ok` line.
+`2026-09-06-laptop-ctpb-rerun-corrected/host-state/host-state-restored.txt`,
+`2026-09-06-laptop-ctpb-decode-experiments/raw/host-state.txt`, and
+`2026-09-06-laptop-ctpb-rerun/host-state/host-state-3b-restored.txt`, each with its own
+`AFTER RESTORE` state read back.
+
+The count was corrected to three on the second pass and is corrected to four here, which is
+itself the point: the fix for a truncated search is to re-run it untruncated and count, not
+to raise the number until it stops looking wrong. `grep -rl` over `measurements/` returns 11
+files; four are restore artifacts and the rest are READMEs and method scripts that mention
+the string.
+
+One of the four also explains the state the machine is in today.
+`2026-09-06-laptop-ctpb-decode-experiments/raw/host-state.txt` reads
+`AFTER RESTORE: gov=powersave epp=performance` — the governor went back to its baseline and
+the energy-performance preference did not. So EPP has been left pinned since 6 September by
+an incomplete restore, and the governor was left pinned separately by the 7 September retake,
+which has no restore artifact at all. Two different sittings, two different halves.
 
 **The cause is worth more than the correction.** The search that produced the wrong answer was
 
