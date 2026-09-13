@@ -53,3 +53,17 @@ if(PkgConfig_FOUND AND PROTOC_EXECUTABLE)
         message(STATUS "Protobuf found via PkgConfig: building test_interop_protobuf")
     endif()
 endif()
+
+# Refusals on the reflection path. A test asserting that a compile fails can
+# pass for the wrong reason, so the driver requires the diagnostic to name the
+# refusal, builds a positive control alongside, and exits 77 -- Skipped, not
+# Passed -- when the P2996 gate is shut and there is nothing to test.
+set(CTPB_NEGATIVE_FLAGS -std=c++26)
+if(CTPB_HAS_FREFLECTION_FLAG)
+    list(APPEND CTPB_NEGATIVE_FLAGS -freflection)
+endif()
+add_test(NAME test_reflection_refusals
+    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/negative/check_refusals.sh
+            ${CMAKE_CXX_COMPILER} ${PROJECT_SOURCE_DIR}/include
+            ${CMAKE_CURRENT_BINARY_DIR}/negative ${CTPB_NEGATIVE_FLAGS})
+set_tests_properties(test_reflection_refusals PROPERTIES SKIP_RETURN_CODE 77)

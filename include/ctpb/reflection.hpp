@@ -1089,13 +1089,49 @@ concept HasSchemaTraits = requires {
 #if CTPB_HAS_P2996
 namespace reflect {
 
+// The field kinds synthesis can represent faithfully: the proto3 scalars, and
+// enums, which proto3 encodes as varints and a C++ int therefore carries
+// correctly. This is an allowlist on purpose. Anything the encoder does not
+// recognise used to fall through to varint, and a message-typed field then
+// encoded as `10 07` where protobuf requires `12 02 08 07`: protoc read it as
+// an unknown field and dropped it, exit 0, and ctpb reading conformant bytes
+// reported no error and lost the field too. The next unrecognised kind would
+// have done the same, so the test is what is known to work, not what is known
+// to break.
+constexpr bool is_synthesizable_scalar(std::string_view t) noexcept {
+    for (std::string_view s : {"double", "float", "int32", "int64", "uint32", "uint64",
+                               "sint32", "sint64", "fixed32", "fixed64", "sfixed32",
+                               "sfixed64", "bool", "string", "bytes"}) {
+        if (t == s) return true;
+    }
+    return false;
+}
+
+// Refusals. Calling a non-constexpr function inside a constant evaluation is
+// what fails the compile, and clang names the function in its diagnostic, so
+// the name is the message. A thrown exception's text is not reliably printed.
+inline void ctpb_reflection_path_cannot_synthesize_message_typed_or_unknown_field() {}
+inline void ctpb_reflection_path_cannot_synthesize_map_or_oneof_field() {}
+
 template <fixed_string ProtoSource, fixed_string MessageName>
 consteval auto complete_message_struct(std::meta::info incomplete_type) {
     using Schema = parse<ProtoSource, MessageName>;
 
     std::vector<std::meta::info> members;
 
-    for (const field_info& info : Schema::declared_fields()) {
+    const auto fields = Schema::declared_fields();
+
+    // map and oneof members never appear in declared_fields(), so a struct
+    // synthesized from it simply lacks them, and decoding conformant bytes
+    // discards their data with no error. Refuse rather than drop.
+    if (Schema::total_field_count() != fields.size()) {
+        ctpb_reflection_path_cannot_synthesize_map_or_oneof_field();
+    }
+
+    for (const field_info& info : fields) {
+        if (!info.is_enum && !is_synthesizable_scalar(info.type)) {
+            ctpb_reflection_path_cannot_synthesize_message_typed_or_unknown_field();
+        }
         std::meta::info type_info = ^^int;
         if (info.type == "string") {
             type_info = ^^std::string;
