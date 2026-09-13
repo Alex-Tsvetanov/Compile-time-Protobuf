@@ -17,6 +17,7 @@
 #include <ctpb/wire.hpp>
 #include <ctpb/embed.hpp>
 #include <ctpb/reflection.hpp>
+#include <ctpb/view.hpp>
 
 namespace ctpb {
 

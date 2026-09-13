@@ -14,6 +14,7 @@ ctpb_add_test(test_nested test_nested.cpp)
 ctpb_add_test(test_oneof test_oneof.cpp)
 ctpb_add_test(test_maps test_maps.cpp)
 ctpb_add_test(test_wire_edge_cases test_wire_edge_cases.cpp)
+ctpb_add_test(test_view test_view.cpp)
 
 # Official Protobuf & gRPC interoperability verification
 find_package(PkgConfig QUIET)
