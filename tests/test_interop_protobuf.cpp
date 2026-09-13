@@ -102,6 +102,13 @@ inline std::span<const std::byte> grpc_unframe(std::span<const std::byte> frame)
 }
 
 int main() {
+    // Which implementation these results describe. This test links the
+    // distribution libprotobuf, which is built against libstdc++, and that
+    // hides <meta> -- so it runs on the C++20 compatibility path, by design and
+    // unconditionally. A passing suite once got quoted as evidence for the
+    // reflection path because nothing here said otherwise.
+    std::printf("CTPB_HAS_P2996=%d (%s path)\n", (int)CTPB_HAS_P2996,
+                CTPB_HAS_P2996 ? "reflection" : "C++20 compatibility");
     // -------------------------------------------------------------
     // Test 1: Google Protoc encodes -> ctpb decodes
     // -------------------------------------------------------------
@@ -248,6 +255,7 @@ int main() {
         std::printf("[PASS] Test 3: Bidirectional gRPC framing exchange with Google backend validated.\n");
     }
 
-    std::printf("test_interop_protobuf: ALL INTEROP & GRPC TESTS PASSED!\n");
+    std::printf("test_interop_protobuf: ALL INTEROP & GRPC TESTS PASSED on the %s path (CTPB_HAS_P2996=%d)\n",
+                CTPB_HAS_P2996 ? "reflection" : "C++20 compatibility", (int)CTPB_HAS_P2996);
     return 0;
 }
