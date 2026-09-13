@@ -25,7 +25,9 @@ trial 0 dropped as warm-up.
 
 **Read the direction carefully: at 100 fields ctpb is 2.87× SLOWER to build, not faster.**
 ctpb wins the build at a small schema and loses it badly at a large one, and **the crossover
-lies between 25 and 100 fields.** The two arms scale differently rather than differing by a
+lies between 5 and 25 fields** — 1.12× at 25 is already ctpb behind. (An earlier version of
+this sentence said between 25 and 100, which the table on the line above contradicts; the
+table was always right.) The two arms scale differently rather than differing by a
 constant: ctpb goes 2.09 → 2.95 → 9.05 while protoc goes 2.49 → 2.63 → 3.15, because the
 protoc arm's growth is confined to compiling more generated code (1.26 → 1.39 → 1.86 s) while
 its other three steps are flat — `protoc` itself never exceeds **0.015 s** and the link never
@@ -72,7 +74,9 @@ protoc"*; both encode to 42 wire bytes.
 **small (5 fields) 0.518 µs [0.515, 0.527], medium (25) 2.012 µs [1.984, 2.048], large
 (100) 7.491 µs [7.442, 7.530].** All seven trials are in the raw file; this script prints no
 summary of its own, so these medians are computed over all seven rather than dropping trial 0
-the way the compile-cost summariser does — the warm-up loop is inside the binary here.
+the way the compile-cost summariser does — the warm-up loop is inside the binary here. **For a figure directly comparable with the
+paper, which retains six trials, the same data gives 0.522 / 2.013 / 7.487 µs** — the two
+conventions differ by less than one part in two hundred, and both are in the raw file.
 
 **This script is not "now on the reflection path". It never was on it, because the gate does
 not reach the code it measures.** It exercises `ctpb::parser::parse_file()`, and the P2996
@@ -191,7 +195,34 @@ anything the binary might say about a failure, and this repo has already had one
 this session carries a standing note that it runs the base image rather than the derived one.
 The old `eval_runtime_comparison{,_lite}.sh` were not run. Nothing in `paper/` was touched.
 The governor was **found** at `performance` with EPP `performance` and **left untouched**;
+restoring it is Alex's call and not this session's.
 `sudo -n` succeeds on this host, so pinning and restoring are both possible for this user —
 the machine is simply still in the state the 2026-09-07 sitting pinned it to, against a
 captured baseline of `governor=powersave epp=balance_performance`. Restoring it is one
 command and is not mine to run mid-campaign.
+
+
+## A correction this record owes to its own method note
+
+I told the writer that only one 6 September record carried restore evidence and named the
+path. **That was wrong: three do** —
+`2026-09-06-laptop-p5-single-host/raw/host-state.txt:3`,
+`2026-09-06-laptop-ctpb-rerun-corrected/host-state/host-state-restored.txt`, and
+`2026-09-06-laptop-ctpb-decode-experiments/raw/host-state.txt`, each with its own
+`AFTER RESTORE … verification=ok` line.
+
+**The cause is worth more than the correction.** The search that produced the wrong answer was
+
+    grep -rn -i 'AFTER RESTORE\|verification=ok' measurements/ | head -5
+
+and the same grep without the pipe returns **12 lines across 11 files**. `head -5` truncated
+the evidence and I read the truncation as the result. This session already carries a standing
+note that a capture which discards the discriminant — `| head`, `| tail`, `grep -o` — converts
+a check into a guess; it was hit anyway, in the one command whose whole purpose was to count
+occurrences.
+
+**What does survive the correction:** the 2026-09-07 retake still has no restore artifact. Its
+`raw/` holds `pin-state.txt` (the captured baseline) and `environment.txt` (`governor:
+performance`, so the timed work did run pinned) and nothing recording a restore — which is
+consistent with the live state I found six days later, and with the paper having dropped the
+restore clause.
