@@ -71,4 +71,7 @@ int main() {
 EOF
 
 clang++ -O3 -std=c++26 -freflection -I/workspace/include "$DIR/bench.cpp" -o "$DIR/bench" 2>"$DIR/stderr.log" || { cat "$DIR/stderr.log"; exit 1; }
-"$DIR/bench" 2>/dev/null
+# stderr carries the benchmark's own anti-optimisation sink line. Discarding it
+# hides whatever the program has to say about itself, which is how this
+# repository lost a campaign to a harness that exited 0 having measured nothing.
+"$DIR/bench"
