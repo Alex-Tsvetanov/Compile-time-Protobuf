@@ -279,7 +279,6 @@ by default, have their payload size computed inline and are
 written as one contiguous length-delimited record under a single
 tag.
 
-optimized code and timed at run time, so these figures bound
 the per-schema front-end work rather than measuring it inside
 constant evaluation.
 TABLE I
@@ -305,39 +304,52 @@ The parser’s ceiling is a property of the compiler rather
 than of the schema language. Bisection at Clang’s default
 B. Deserialization and Error Recovery
 constexpr step budget compiles a largest single message
-The ctpb::wire::reader operates on a non-owning
-of 300 fields and fails at 301 fields. Raising the budget to
-std::span<const std::byte> and bounds-checks ev4,194,304 steps compiles both 500 and 1000 fields. An explicit
-ery read: varint decoding refuses to advance past the buffer end
-1,048,576-step limit fails at the same point, and the project
-or beyond the ten-byte maximum width, and length-delimited
-sets no constexpr step flag in its build.
+The ctpb::wire::reader operates on a non-owning of 300 fields and fails at 301 fields. Raising the budget to
+std::span<const std::byte> and bounds-checks ev- 4,194,304 steps compiles both 500 and 1000 fields. An explicit
+ery read: varint decoding refuses to advance past the buffer end 1,048,576-step limit fails at the same point, and the project
+or beyond the ten-byte maximum width, and length-delimited sets no constexpr step flag in its build.
 reads validate the declared length against the remaining
-bytes before yielding a subspan. ctpb::decode returns B. Runtime Serialization Throughput
-failures as std::expected<T, decode_error> rather
+B. Runtime Serialization Throughput
+bytes before yielding a subspan. ctpb::decode returns
 We evaluated encoding and decoding on a 3-field Person
-than throwing, so decoding remains usable in noexcept message with a 47-byte wire payload over seven trials of
-contexts.
-106 iterations each with a 20,000-iteration warm-up. The refUnknown field numbers are tolerated during decoding. The erences are full libprotobuf and libprotobuf-lite
-skip_field method uses the wire type alone to advance past (optimize_for = LITE_RUNTIME). Each reference was
-an unrecognized integer, fixed-width block, or length-delimited built and run in a separate paired arm with ctpb.
+failures as std::expected<T, decode_error> rather
+message
+with a 47-byte wire payload over seven trials of
+than throwing, so decoding remains usable in noexcept
+6
+10
+iterations
+each with a 20,000-iteration warm-up. The refcontexts.
+erences
+are
+full
+libprotobuf and libprotobuf-lite
+Unknown field numbers are tolerated during decoding. The
+(optimize_for
+= LITE_RUNTIME). Each reference was
+skip_field method uses the wire type alone to advance past
+built
+and
+run
+in
+a
+separate
+paired arm with ctpb.
+an unrecognized integer, fixed-width block, or length-delimited
 payload, allowing an older ctpb reader to consume a message
-containing newer fields. Skipped fields are not retained for
 TABLE II
-re-serialization.
+containing newer fields. Skipped fields are not retained for
 RUNTIME LATENCY, MEDIAN [ MIN , MAX ] OF SIX TRIALS , 47- BYTE
+re-serialization.
 PAYLOAD
-
 VII. E XPERIMENTAL E VALUATION
+
 All results in this section come from one sitting on 7 September 2026: an AMD Ryzen 7 5800H with 16 logical CPUs
-running Linux 7.2.3. Before the run, the scaling governor
-and energy-performance preference of every CPU were set to
-performance; afterwards both were restored and verified
-against the state captured beforehand. No frequency samples
-accompany this sitting’s record. The timed work ran in a
-container image built from the project’s own recipe [6], using
-the experimental Clang 21 branch that implements P2996,
--std=c++26 -freflection -O3, and Protobuf 3.21.12.
+running Linux 7.2.3. Every CPU ran at the performance
+scaling governor for the duration, as the run’s own environment capture records. No frequency samples accompany this
+sitting’s record. The timed work ran in a container image
+built from the project’s own recipe [6], using the experimental Clang 21 branch that implements P2996, -std=c++26
+-freflection -O3, and Protobuf 3.21.12.
 Each ctpb–reference pair was measured independently, so
 the full-library and lite-library comparisons have separate ctpb
 baselines. Trial 0 is excluded as a warm-up; all tables report
@@ -350,6 +362,7 @@ We measured the constexpr parser on synthetic schemas
 scaled by field count alone (5, 25, and 100 int32 fields),
 each over 20,000 iterations after a 2,000-iteration warm-up,
 across seven trials (Table I). The parser is compiled as ordinary
+optimized code and timed at run time, so these figures bound
 
 Reference Operation
 ctpb (ns)

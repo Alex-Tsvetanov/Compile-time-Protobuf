@@ -583,9 +583,8 @@ add_p("Experimental Evaluation", style="heading 1")
 add_p(
     "All results in this section come from one sitting on 7 September "
     "2026: an AMD Ryzen 7 5800H with 16 logical CPUs running Linux 7.2.3. "
-    "Before the run, the scaling governor and energy-performance preference of "
-    "every CPU were set to `performance`; afterwards both were restored and "
-    "verified against the state captured beforehand. No frequency samples "
+    "Every CPU ran at the `performance` scaling governor for the duration, as "
+    "the run's own environment capture records. No frequency samples "
     "accompany this sitting's record. The timed work ran in a container image "
     "built from the project's own recipe [6], using the experimental Clang 21 "
     "branch that implements P2996, `-std=c++26 -freflection -O3`, and "
