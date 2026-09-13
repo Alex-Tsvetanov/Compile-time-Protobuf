@@ -70,5 +70,5 @@ int main() {
 }
 EOF
 
-clang++ -O3 -std=c++26 -freflection -stdlib=libstdc++ -I/workspace/include "$DIR/bench.cpp" -o "$DIR/bench" 2>"$DIR/stderr.log" || { cat "$DIR/stderr.log"; exit 1; }
+clang++ -O3 -std=c++26 -freflection -I/workspace/include "$DIR/bench.cpp" -o "$DIR/bench" 2>"$DIR/stderr.log" || { cat "$DIR/stderr.log"; exit 1; }
 "$DIR/bench" 2>/dev/null

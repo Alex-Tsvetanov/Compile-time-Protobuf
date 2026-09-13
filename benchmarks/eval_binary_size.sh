@@ -7,8 +7,8 @@ mkdir -p "$DIR"
 cd "$DIR"
 
 # 1. Compile ctpb binary and object file from examples/person.cpp
-clang++ -O3 -std=c++26 -freflection -stdlib=libstdc++ -I/workspace/include /workspace/examples/person.cpp -o "$DIR/person_ctpb"
-clang++ -O3 -std=c++26 -freflection -stdlib=libstdc++ -I/workspace/include -c /workspace/examples/person.cpp -o "$DIR/person_ctpb.o"
+clang++ -O3 -std=c++26 -freflection -I/workspace/include /workspace/examples/person.cpp -o "$DIR/person_ctpb"
+clang++ -O3 -std=c++26 -freflection -I/workspace/include -c /workspace/examples/person.cpp -o "$DIR/person_ctpb.o"
 
 # 2. Generate Protobuf C++ code via protoc
 cat << 'EOF' > "$DIR/addressbook.proto"
