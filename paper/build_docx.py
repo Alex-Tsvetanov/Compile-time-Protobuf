@@ -305,13 +305,15 @@ abstract = (
     "a constexpr recursive-descent parse into an Abstract Syntax Tree, and "
     "materializes type-safe fields and wire-format visitors without generated "
     ".pb.h or .pb.cc files. On one host, a synthetic 100-field schema is "
-    "parsed in 7.239 microseconds (range 7.227 to 7.256 microseconds). For a "
-    "47-byte, three-field Person workload, ctpb encodes between 5.38x and 5.59x "
-    "faster than full and lite libprotobuf, while decoding remains near parity "
-    "(between 1.09x and 1.10x) and includes proto3 UTF-8 validation. A stripped "
-    "sample executable is 18,776 bytes versus 1,759,368 bytes for the "
-    "generated-code static-runtime comparison. Wire-format fidelity is verified "
-    "bidirectionally against the reference implementation."
+    "parsed in 7.487 microseconds (range 7.442 to 7.515 microseconds). For a "
+    "47-byte, three-field Person workload, ctpb encodes 4.80x faster than "
+    "libprotobuf 3.21.12, while decoding leads by 1.26x to 1.46x and includes "
+    "proto3 UTF-8 validation. A stripped sample executable is 18,792 bytes versus "
+    "1,759,368 bytes for the generated-code static-runtime comparison. Removing the "
+    "generator relocates its cost into the front end rather than eliminating it: the "
+    "same schema at 100 fields builds 2.87x more slowly than the generated path. "
+    "Wire-format fidelity is verified bidirectionally against the reference "
+    "implementation."
 )
 p = doc.add_paragraph()
 p.style = doc.styles["Abstract"]
@@ -366,10 +368,11 @@ add_p(
     "types without generated intermediate files. Its parser handles nested "
     "messages, enums, maps, oneofs, and reserved ranges, while P2996 injects "
     "fields and makes wire visitors available programmatically. The evaluation "
-    "reports a 7.239 microsecond parse for a synthetic 100-field schema and "
-    "encoding speedups from 5.38x to 5.59x over full and lite libprotobuf on a "
-    "47-byte Person workload, with bidirectional wire-format tests against the "
-    "reference implementation.", style="Body Text")
+    "reports a 7.487 microsecond parse for a synthetic 100-field schema and a "
+    "4.80x encoding speedup over libprotobuf 3.21.12 on a 47-byte Person workload, "
+    "with bidirectional wire-format tests against the reference implementation, and "
+    "it measures the build cost the removed generator is replaced by.",
+    style="Body Text")
 
 # ================================================================ II. BACKGROUND
 add_p("Background", style="heading 1")
@@ -581,7 +584,7 @@ add_p(
 # ======================================================== VII. EVALUATION
 add_p("Experimental Evaluation", style="heading 1")
 add_p(
-    "All results in this section come from one sitting on 7 September "
+    "All results in this section come from one sitting on 13 September "
     "2026: an AMD Ryzen 7 5800H with 16 logical CPUs running Linux 7.2.3. "
     "Every CPU ran at the `performance` scaling governor for the duration, as "
     "the run's own environment capture records. No frequency samples "
@@ -591,8 +594,9 @@ add_p(
     "Protobuf 3.21.12.",
     style="Body Text")
 add_p(
-    "Each `ctpb`--reference pair was measured independently, so the full-library "
-    "and lite-library comparisons have separate `ctpb` baselines. Trial 0 is "
+    "The reflection implementation is the one measured: the P2996 feature gate is "
+    "verified open in the measured configuration, and the same command with "
+    "`-stdlib=libstdc++` closes it, because <meta> ships only with libc++. Trial 0 is "
     "excluded as a warm-up; all tables report the median and full range of the "
     "six retained trials. The results describe this host and these workloads, "
     "not performance across machines. Raw trial lines, the environment record, "
@@ -612,52 +616,100 @@ add_table(
     "Parser Latency, Compiled as Ordinary Code, Median and Range of Six Trials",
     ["Schema", "Fields", "Latency / Parse", "Throughput"],
     [
-        ["Small", "5", "0.492 [0.489, 0.500] µs", "2,032,520 parses/s"],
-        ["Medium", "25", "1.938 [1.920, 1.968] µs", "515,996 parses/s"],
-        ["Large", "100", "7.239 [7.227, 7.256] µs", "138,141 parses/s"],
+        ["Small", "5", "0.522 [0.515, 0.527] µs", "1,917,546 parses/s"],
+        ["Medium", "25", "2.013 [1.985, 2.048] µs", "496,894 parses/s"],
+        ["Large", "100", "7.487 [7.442, 7.515] µs", "133,556 parses/s"],
     ],
     widths=[Inches(0.58), Inches(0.42), Inches(1.35), Inches(1.03)])
 add_p(
-    "A 100-field schema is ingested in 7.239 microseconds. We do not report a "
-    "direct ratio to `protoc`, because this campaign did not collect an end-to-end "
-    "`protoc` measurement.",
+    "A 100-field schema is ingested in 7.487 microseconds. This table is unaffected "
+    "by the feature gate: a parser-only translation unit never instantiates the "
+    "synthesis code, and the same probe compiled with the gate open and forced shut "
+    "produces byte-identical text.",
     style="Body Text")
 add_p(
-    "The parser's ceiling is a property of the compiler rather than of the schema "
-    "language. Bisection at Clang's default `constexpr` step budget compiles a "
-    "largest single message of 300 fields and fails at 301 fields. Raising the "
-    "budget to 4,194,304 steps compiles both 500 and 1,000 fields. An explicit "
-    "1,048,576-step limit fails at the same point, and the project sets no "
-    "`constexpr` step flag in its build.", style="Body Text")
+    "The ceiling on schema size is a property of the compiler's evaluation budget "
+    "rather than of the schema language. Bisecting `define_message` at Clang's "
+    "default `constexpr` step limit synthesizes a largest single message of 317 "
+    "fields and fails at 318. The diagnostic locates the exhaustion in the "
+    "destructor of the std::vector of member descriptors that synthesis builds, not "
+    "in parsing or in `define_aggregate`, so the limit is reached by bookkeeping the "
+    "compiler performs on the descriptor list. Raising the budget to 100,000,000 "
+    "steps compiles 318, 400, 800, 1,600 and 3,200 fields, the largest attempted, in "
+    "19.8 s; no ceiling was found. Any \"supports N fields\" claim is therefore a "
+    "statement about a compiler flag, and `ctpb` sets none.", style="Body Text")
+
+add_p("Build Cost", style="heading 2")
+add_p(
+    "`ctpb` moves schema processing from a generator invocation into the compilation "
+    "of the translation unit that uses the schema, so a comparison that measures only "
+    "run time omits the side where the cost was moved to. We therefore timed the whole "
+    "path from a .proto file to a linked program on both sides: for `ctpb`, compiling "
+    "one translation unit that ingests the schema; for the generated path, running "
+    "`protoc`, compiling the generated .pb.cc, compiling an equivalent user translation "
+    "unit, and linking, all counted.", style="Body Text")
+add_table(
+    "Build Cost from .proto to Linked Program, Median [Min, Max] of Six Trials, Seconds",
+    ["Fields", "ctpb", "Generated", "Ratio"],
+    [
+        ["5", "2.09 [2.08, 2.10]", "2.49 [2.47, 2.50]", "0.84x"],
+        ["25", "2.95 [2.90, 2.99]", "2.63 [2.60, 2.66]", "1.12x"],
+        ["100", "9.05 [8.59, 9.14]", "3.15 [3.12, 3.21]", "2.87x"],
+    ],
+    widths=[Inches(0.52), Inches(1.03), Inches(1.03), Inches(0.80)])
+add_p(
+    "The ordering reverses with schema size. At 5 fields `ctpb` builds faster than the "
+    "generated path, by 25 fields it is already slower, and at 100 fields it costs "
+    "2.87x as much. The two sides also scale differently rather than differing by a "
+    "constant: `protoc` itself never exceeds 0.015 s and the link 0.058 s, so the "
+    "generated path's growth is almost entirely the cost of compiling more generated "
+    "code, which grows mildly, while `ctpb`'s growth is constant evaluation of a longer "
+    "schema, which does not. Removing the generator does not remove the work; it "
+    "relocates it into the front end, where at this scale it is more expensive.",
+    style="Body Text")
 
 add_p("Runtime Serialization Throughput", style="heading 2")
 add_p(
     "We evaluated encoding and decoding on a 3-field `Person` message with a "
-    "47-byte wire payload over seven trials of one million iterations each with a "
-    "20,000-iteration warm-up. The references are full `libprotobuf` and "
-    "`libprotobuf-lite` (`optimize_for = LITE_RUNTIME`). Each reference was "
-    "built and run in a separate paired arm with `ctpb`.", style="Body Text")
+    "47-byte wire payload against full `libprotobuf`. The two arms are separate "
+    "programs, because they cannot share one: <meta> ships only with libc++, while "
+    "the reference library is built against libstdc++ and does not link against "
+    "libc++. The timed loop is one header compiled into both arms rather than two "
+    "loops intended to match, both arms are held behind a compiler barrier, both "
+    "encode into a preallocated buffer and decode into a reused target, and both "
+    "assert a correct round trip before timing. The arms are alternated across five "
+    "repetitions of twenty rounds each and the table reports the median and range "
+    "over all 100 rounds. The two arms are verified to produce identical wire bytes; "
+    "the comparison is void otherwise.", style="Body Text")
 add_table(
-    "Runtime Latency, Median [Min, Max] of Six Trials, 47-Byte Payload",
-    ["Ref.", "Op.", "ctpb (ns)", "Ref. (ns)", "Speedup"],
+    "Runtime Latency, Median [Min, Max] over 100 Rounds, 47-Byte Payload",
+    ["Operation", "ctpb (ns)", "libprotobuf (ns)", "Ratio"],
     [
-        ["lite", "Encode", "6.614 [6.268, 6.698]", "36.992 [35.691, 37.087]", "5.593x"],
-        ["lite", "Decode", "62.218 [58.114, 62.859]", "68.553 [64.715, 69.242]", "1.102x"],
-        ["full", "Encode", "6.466 [6.416, 6.831]", "34.755 [34.675, 36.755]", "5.375x"],
-        ["full", "Decode", "58.434 [57.334, 59.064]", "63.552 [63.401, 68.705]", "1.088x"],
+        ["Encode", "7.70 [7.10, 9.11]", "36.97 [33.57, 41.37]", "4.80x"],
+        ["Decode", "50.38 [45.33, 52.77]", "70.39 [63.85, 77.37]", "1.26-1.46x"],
     ],
-    widths=[Inches(0.42), Inches(0.48), Inches(0.85), Inches(0.85), Inches(0.78)])
+    widths=[Inches(0.72), Inches(1.00), Inches(1.05), Inches(0.70)])
 add_p(
-    "For this workload, `ctpb` encodes 5.59x faster than the lite runtime and "
-    "5.38x faster than the full runtime. Field sizes are known to the compiler, "
+    "For this workload `ctpb` encodes 4.80x faster. Field sizes are known to the compiler, "
     "so the encoder allocates one exactly sized buffer through `byte_size()` and "
     "writes fields through raw pointers without reallocation or virtual dispatch. "
     "These results are limited to the message shape and allocation policy "
     "exercised here.", style="Body Text")
 add_p(
-    "Decoding is a narrower result. All reported `ctpb` measurements include UTF-8 "
-    "validation for `string` fields. The 1.09x to 1.10x ratios are reported as "
-    "near parity rather than a general decoding lead.", style="Body Text")
+    "Decoding is the narrower and the more fragile result, and is quoted as a range "
+    "because five repetitions do not support a point estimate: the per-repetition "
+    "ratio spans 1.26x to 1.46x. All reported `ctpb` measurements include UTF-8 "
+    "validation for `string` fields. Two properties of the comparison bound how far "
+    "it generalizes. The arms link different C++ runtimes, libc++ and libstdc++, "
+    "because neither builds the other way. More importantly the decode margin is "
+    "specific to the 3.21.12 baseline: a single unpaired run of `libprotobuf` 36.0.0, "
+    "built alone on the host toolchain because no `ctpb` arm exists there, decoded "
+    "the same message in 48.9 ns against the 50.4 ns measured here for `ctpb`. That "
+    "run shares neither compiler nor container with the table and establishes nothing "
+    "on its own, but it is sufficient to say that the decoding result should not be "
+    "read as a margin over Protocol Buffers in general. The encoding margin is not at "
+    "risk from the same comparison, which encoded more slowly rather than faster.",
+    style="Body Text")
 
 add_p("Binary Footprint", style="heading 2")
 add_table(
@@ -665,24 +717,30 @@ add_table(
     ["Metric", "ctpb", "Generated (dyn.)", "Generated (static)"],
     [
         ["Generated Source Lines", "0", "754", "754"],
-        ["Stripped Executable", "18,776 B", "27,504 B", "1,759,368 B"],
-        ["Code and Read-Only Data", "10,941 B", "16,373 B", "1,731,945 B"],
+        ["Stripped Executable", "18,792 B", "27,504 B", "1,759,368 B"],
+        ["Code (.text)", "7,027 B", "4,728 B", "1,323,755 B"],
         ["Protobuf Runtime Dependency", "none", "libprotobuf.so", "none"],
     ],
     widths=[Inches(1.30), Inches(0.45), Inches(0.75), Inches(0.88)])
 add_p(
     "For a single 3-field message, `protoc` emits 754 lines across `.pb.h` and "
     "`.pb.cc`, whereas `ctpb` emits no generated files. The generated application "
-    "linked dynamically is 1.46x larger than the `ctpb` sample. The generated "
-    "application with a static `libprotobuf` runtime is 93.70x larger, reflecting "
-    "the bundled runtime rather than a fully static end-to-end deployment "
-    "comparison. All file sizes exclude dynamically linked system libraries; the "
-    "`ctpb` sample has no Protocol Buffers runtime dependency but still links the "
-    "system C++ runtime. The second row is the text column reported by size, "
-    "which covers executable code together with read-only data, not the .text "
-    "section alone. ELF page alignment also gives the stripped-file metric a "
-    "resolution floor of about 4 KB, so the table is a coarse footprint measure "
-    "for small changes.", style="Body Text")
+    "linked dynamically is 1.46x larger as a file and the statically linked one "
+    "93.62x larger.", style="Body Text")
+add_p(
+    "The two rows point in opposite directions and the second is the more "
+    "informative. Measured as exact .text, `ctpb`'s own code is 1.49x larger than "
+    "the dynamically linked generated program's, because that program's encoder and "
+    "decoder are not in it: they are in libprotobuf.so, which the file metric does "
+    "not count. The static column is the same library moved inside the binary, at "
+    "188x `ctpb`'s code. What the comparison shows is therefore not that `ctpb` "
+    "generates less code, but that it carries its serialization logic in the "
+    "executable at a size comparable to a small dynamic stub and two orders of "
+    "magnitude below the bundled runtime. All file sizes exclude dynamically linked "
+    "system libraries; the `ctpb` sample has no Protocol Buffers runtime dependency "
+    "but still links the system C++ runtime. ELF page alignment gives the "
+    "stripped-file metric a resolution floor of about 4 KB, so the file rows are "
+    "coarse for small changes.", style="Body Text")
 
 add_p("Wire Interoperability and Message Framing", style="heading 2")
 add_p(
@@ -722,17 +780,20 @@ add_p(
 # ========================================================== IX. LIMITATIONS
 add_p("Limitations and Future Work", style="heading 1")
 add_p(
-    "The present work has four limitations. First, the evaluated implementation "
+    "The present work has five limitations. First, the evaluated implementation "
     "requires an experimental Clang P2996 branch, so deployment depends on the "
     "compiler revision recorded with the benchmark artifact. Second, the initial "
     "release covers wire serialization only: gRPC service stubs are out of "
     "scope, and integration with a gRPC runtime is untested, the evaluation "
     "above covering the framing alone. Third, constant evaluation is bounded "
     "first by the compiler's step limit rather than by memory: a single message of "
-    "300 `int32` fields compiles under Clang's default of 1,048,576 steps, while "
-    "301 fields fail. The bound is a flag rather than a wall, since "
-    "`-fconstexpr-steps=4194304` compiles a 1,000-field message, but `ctpb` does "
-    "not raise the default. Finally, the performance data comes from one host and "
+    "317 `int32` fields is synthesized under Clang's default budget, while 318 "
+    "fail. The bound is a flag rather than a wall, since raising the budget compiles "
+    "3,200 fields without reaching a ceiling, but `ctpb` does not raise the default. "
+    "Fourth, the decoding margin is specific to the `libprotobuf` 3.21.12 baseline; "
+    "an unpaired run of 36.0.0 decoded the same message faster than the figure "
+    "measured here for `ctpb`, so decoding is not claimed as a lead over Protocol "
+    "Buffers in general. Finally, the performance data comes from one host and "
     "a limited set of synthetic schemas and one 47-byte `Person` message. Future "
     "work targets the Well-Known Types (`Timestamp`, `Duration`), compile-time JSON "
     "mapping, broader workload coverage, and asynchronous stub synthesis.",
@@ -746,12 +807,14 @@ add_p(
     "`constexpr` recursive-descent parsing with P2996 static reflection, "
     "`ctpb` compiles `.proto` schemas directly into type-safe C++ structures in "
     "the compiler front-end. On one host, a 100-field synthetic schema is "
-    "parsed in 7.239 microseconds, and the tested 47-byte `Person` workload "
-    "encodes 5.38x to 5.59x faster than the full and lite `libprotobuf` variants. "
-    "Decoding remains near parity while including UTF-8 validation, and the "
-    "exercised cases pass bidirectional wire-format interoperability tests against "
-    "`libprotobuf`. The static-runtime generated comparison is 93.70x larger than "
-    "the `ctpb` sample, while the dynamic generated comparison is 1.46x larger. "
+    "parsed in 7.487 microseconds, and the tested 47-byte `Person` workload "
+    "encodes 4.80x faster than `libprotobuf` 3.21.12 while including UTF-8 "
+    "validation, and the exercised cases pass bidirectional wire-format "
+    "interoperability tests. The static-runtime generated comparison is 93.62x "
+    "larger as a file than the `ctpb` sample, while the dynamic comparison is 1.46x "
+    "larger; measured as .text, however, `ctpb` carries more code than the dynamic "
+    "stub and far less than the bundled runtime. The removed generator's cost "
+    "reappears in the front end, where at 100 fields it exceeds it. "
     "These results show that static reflection can remove generated Protocol "
     "Buffers source for the evaluated schemas and toolchain while retaining tested "
     "wire-format interoperability.",
