@@ -213,8 +213,12 @@ public:
     constexpr bool read_tag(std::int64_t& field_num, wire_type& wt) noexcept {
         std::uint64_t raw = 0;
         if (!read_varint(raw)) return false;
-        wt = static_cast<wire_type>(raw & 0x7);
-        field_num = static_cast<std::int64_t>(raw >> 3);
+        const std::uint64_t kind = raw & 0x7;
+        const std::uint64_t num = raw >> 3;
+        // Wire types 6 and 7 do not exist, and field number 0 is invalid.
+        if (kind > static_cast<std::uint64_t>(wire_type::fixed32) || num == 0) return false;
+        wt = static_cast<wire_type>(kind);
+        field_num = static_cast<std::int64_t>(num);
         return true;
     }
 
@@ -298,7 +302,9 @@ public:
         return true;
     }
 
-    constexpr bool skip_field(wire_type wt) noexcept {
+    // Skips one field value. For a group, skips to the matching end-group tag.
+    // Pass the group's field number to also check the end tag number (-1: any).
+    constexpr bool skip_field(wire_type wt, std::int64_t group_field_num = -1) noexcept {
         switch (wt) {
             case wire_type::varint: {
                 std::uint64_t dummy = 0;
@@ -316,12 +322,38 @@ public:
                 if (remaining() < 4) return false;
                 pos_ += 4;
                 return true;
+            case wire_type::start_group:
+                return skip_group(group_field_num);
             default:
                 return false;
         }
     }
 
 private:
+    // Reads tags until the end-group tag that closes the group just opened.
+    // Nested groups are tracked with a stack of their field numbers.
+    constexpr bool skip_group(std::int64_t field_num) noexcept {
+        constexpr std::size_t max_depth = 100;  // same limit as the reference parser
+        std::int64_t open[max_depth];
+        std::size_t depth = 0;
+        open[depth++] = field_num;
+        while (depth > 0) {
+            std::int64_t num = 0;
+            wire_type kind = wire_type::varint;
+            if (!read_tag(num, kind)) return false;
+            if (kind == wire_type::start_group) {
+                if (depth == max_depth) return false;
+                open[depth++] = num;
+            } else if (kind == wire_type::end_group) {
+                const std::int64_t want = open[--depth];
+                if (want >= 0 && want != num) return false;
+            } else if (!skip_field(kind)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     std::span<const std::byte> buf_;
     std::size_t pos_ = 0;
 };

@@ -5,6 +5,7 @@
 #ifndef CTPB_AST_HPP
 #define CTPB_AST_HPP
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string_view>
@@ -110,6 +111,15 @@ struct map_field {
     std::int64_t     number = 0;
 };
 
+// One member of a message in declaration order: a plain field, a oneof or a
+// map. `index` points into message::fields, message::oneofs or message::maps.
+enum class member_kind : std::uint8_t { field, oneof, map };
+
+struct member_ref {
+    member_kind kind  = member_kind::field;
+    std::size_t index = 0;
+};
+
 struct reserved_range {
     std::int64_t from = 0;
     std::optional<std::int64_t> to;  // nullopt means single number
@@ -130,6 +140,7 @@ struct message {
     std::vector<reserved_range>   reserved_field_numbers;
     std::vector<std::string_view> reserved_field_names;
     std::vector<field>            extensions;
+    std::vector<member_ref>       members;  // fields, oneofs and maps in declaration order
 
     [[nodiscard]] constexpr const field* find_field_by_name(std::string_view fname) const noexcept {
         for (const auto& f : fields) {

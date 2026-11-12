@@ -1,0 +1,47 @@
+// Interop schema for proto3 optional (explicit presence), oneof and map.
+// test_interop_protobuf.cpp embeds the same text, so keep the two in sync.
+
+syntax = "proto3";
+
+package interop;
+
+enum Kind {
+  KIND_ZERO = 0;
+  KIND_ONE = 1;
+  KIND_TWO = 2;
+}
+
+message Item {
+  int32 n = 1;
+  string label = 2;
+}
+
+message Presence {
+  optional int32 count = 1;
+  optional string title = 2;
+  optional bool flag = 3;
+  optional Kind kind = 4;
+  optional sint64 delta = 5;
+  optional double ratio = 6;
+  optional Item item = 7;
+  int32 plain = 8;
+}
+
+message Choice {
+  int32 id = 1;
+  oneof body {
+    string text = 2;
+    int32 code = 3;
+    sint32 delta = 4;
+    Item item = 5;
+    bytes blob = 6;
+  }
+}
+
+message Maps {
+  map<string, int32> counts = 1;
+  map<sint64, string> names = 2;
+  map<uint32, Item> items = 3;
+  map<bool, Kind> kinds = 4;
+  map<fixed64, bytes> blobs = 5;
+}

@@ -57,9 +57,16 @@ public:
                 file.messages.push_back(parse_message());
             } else if (t.kind == tok_kind::kw_enum) {
                 file.top_level_enums.push_back(parse_enum());
+            } else if (t.kind == tok_kind::kw_service) {
+                skip_service(); // services do not affect message types
             } else if (t.kind == tok_kind::sym && t.text == ";") {
                 lex_.next(); // stray semicolon
             } else {
+                if (t.kind == tok_kind::kw_extend) {
+                    record_error("unsupported ", "top-level 'extend'");
+                } else {
+                    record_error("unexpected ", "token at top level");
+                }
                 break;
             }
         }
@@ -86,8 +93,10 @@ public:
                 msg.nested_enums.push_back(parse_enum());
             } else if (t.kind == tok_kind::kw_oneof) {
                 msg.oneofs.push_back(parse_oneof());
+                msg.members.push_back(ast::member_ref{ast::member_kind::oneof, msg.oneofs.size() - 1});
             } else if (t.kind == tok_kind::kw_map) {
                 msg.maps.push_back(parse_map_field());
+                msg.members.push_back(ast::member_ref{ast::member_kind::map, msg.maps.size() - 1});
             } else if (t.kind == tok_kind::kw_reserved) {
                 parse_reserved(msg);
             } else if (t.kind == tok_kind::kw_option) {
@@ -95,7 +104,13 @@ public:
             } else if (t.kind == tok_kind::sym && t.text == ";") {
                 lex_.next();
             } else {
+                // Always consume at least one token, so bad input cannot loop forever.
+                source_location before = t.loc;
                 msg.fields.push_back(parse_field());
+                msg.members.push_back(ast::member_ref{ast::member_kind::field, msg.fields.size() - 1});
+                if (lex_.peek().loc.line == before.line && lex_.peek().loc.column == before.column) {
+                    lex_.next();
+                }
             }
         }
 
@@ -157,7 +172,8 @@ public:
         token type_tok = expect(tok_kind::ident, "field type");
         f.type = ast::type_ref{type_tok.text};
 
-        token name_tok = expect(tok_kind::ident, "field name");
+        // Keywords are legal field names (for example `string max = 1;`).
+        token name_tok = is_ident_like(lex_.peek().kind) ? lex_.next() : expect(tok_kind::ident, "field name");
         f.name = name_tok.text;
 
         expect_sym("=", "field assignment");
@@ -293,18 +309,55 @@ public:
         }
     }
 
+    static constexpr bool is_ident_like(tok_kind k) noexcept {
+        return k == tok_kind::ident || k >= tok_kind::kw_syntax;
+    }
+
     constexpr token expect(tok_kind k, std::string_view ctx) {
+        if (lex_.peek().kind != k) record_error("expected ", ctx);
         return lex_.expect(k, ctx);
     }
 
     constexpr void expect_sym(std::string_view s, std::string_view ctx) {
-        if (!lex_.match_sym(s)) {
-            // Non-fatal
+        if (!lex_.match_sym(s)) record_error("expected ", ctx);
+    }
+
+    // Parsing never stops on an error. The first error is kept, so callers
+    // (the compile-time schema check) can report it with its position.
+    [[nodiscard]] constexpr bool failed() const noexcept { return failed_; }
+    [[nodiscard]] constexpr std::string_view error_prefix() const noexcept { return err_prefix_; }
+    [[nodiscard]] constexpr std::string_view error_context() const noexcept { return err_ctx_; }
+    [[nodiscard]] constexpr source_location error_location() const noexcept { return err_loc_; }
+
+private:
+    constexpr void record_error(std::string_view prefix, std::string_view ctx) {
+        if (failed_) return;
+        failed_ = true;
+        err_prefix_ = prefix;
+        err_ctx_ = ctx;
+        err_loc_ = lex_.peek().loc;
+    }
+
+    // Skips `service Name { ... }`, including nested braces.
+    constexpr void skip_service() {
+        lex_.next(); // 'service'
+        int depth = 0;
+        while (lex_.peek().kind != tok_kind::eof) {
+            token t = lex_.next();
+            if (t.kind != tok_kind::sym) continue;
+            if (t.text == "{") {
+                ++depth;
+            } else if (t.text == "}" && --depth <= 0) {
+                return;
+            }
         }
     }
 
-private:
     lexer lex_;
+    bool failed_ = false;
+    std::string_view err_prefix_;
+    std::string_view err_ctx_;
+    source_location err_loc_{};
 };
 
 } // namespace ctpb

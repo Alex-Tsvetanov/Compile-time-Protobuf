@@ -20,7 +20,7 @@ A modern, header-only C++26 library that ingests `.proto` files directly at comp
   - **Decode:** **$127.99\,\text{ns}$** ($350.2\,\text{MB/s}$, $7.81\,\text{MOps/s}$) vs Google Protobuf $218.60\,\text{ns}$ $\to$ **$\mathbf{1.71\times}$ faster**.
 - **$93.7\times$ Smaller Static Binary Footprint:** Standalone static executable requires only **$18.3\,\text{KB}$** compared to **$1.72\,\text{MB}$** with static `protoc` / `libprotobuf` by eliminating runtime descriptor registries, arena allocators, and mutex locks.
 - **Holds Up Against the Fairer Baseline:** re-measured against `libprotobuf-lite` (same machine, median of 7 trials — see `benchmarks/eval_runtime_comparison_lite.sh` and `benchmarks/results/`): **$3.06\times$ faster encoding, $1.69\times$ faster decoding**, essentially the same margin as against full `libprotobuf`.
-- **Reference & Transport Interoperability:** bidirectional wire-format fidelity with official `libprotobuf` (3.21.12), covering scalars, strings, nested messages, enums, `bytes` fields, and packed repeated scalar fields, plus `grpc::SerializationTraits<T>` transport integration.
+- **Reference & Transport Interoperability:** bidirectional wire-format fidelity with official `libprotobuf` (3.21.12), covering scalars, strings, nested messages, enums, `bytes` fields, and packed repeated scalar fields, plus `grpc::SerializationTraits<T>` transport integration. The interop test also checks proto3 `optional`, `oneof` and `map` fields byte for byte against `libprotobuf` 36.2.
 
 ---
 
@@ -32,10 +32,43 @@ A modern, header-only C++26 library that ingests `.proto` files directly at comp
 | **Recursive-Descent `constexpr` Parser** | ✅ | Full proto3 grammar: messages, enums, repeated, maps, oneofs, reserved tags |
 | **P2996 Static Reflection Engine** | ✅ | Pure zero-macro `define_message` spliced structs with dot syntax |
 | **Two-Pass Raw-Pointer Wire Engine** | ✅ | Exact compile-time pre-allocation (`byte_size()`) + non-allocating direct pointer encoding |
-| **Comprehensive Test Suite (9 Suites)** | ✅ | Lexer, parser, wire encoding, roundtrips, nested messages, maps, oneofs, wire-format edge cases, Google interop |
+| **Comprehensive Test Suite (19 test programs, 5 compile-fail cases)** | ✅ | Lexer, parser, wire encoding, roundtrips, nested messages, proto3 optional, oneof and map members, fixed-width types, groups, schema scopes and diagnostics, wire-format edge cases, Google interop |
 | **Microbenchmark Suite** | ✅ | Ingestion latency, binary footprint evaluation, head-to-head runtime speedup vs `libprotobuf` and `libprotobuf-lite` |
 | **Academic Publication Paper** | ✅ | 7-page IEEE CSIT 2026 conference paper (`paper/main.pdf`) |
 | **Conference Beamer Presentation** | ✅ | 12-slide 10-minute presentation (`presentation/presentation.pdf`) |
+
+---
+
+## Supported proto3 Features
+
+Both code paths support the same features: the P2996 structs made by `define_message`, and the
+templates over the parsed schema (`ctpb::message<schema, "Name">`, `ctpb::reflect_base`).
+
+| proto3 | C++ member | Wire behaviour |
+|---|---|---|
+| Scalars, enums, `string`, `bytes` | `int32_t`, `std::string`, `std::vector<std::byte>`, ... (enums as `int32_t`) | Zero and empty values are not written |
+| `repeated` | `std::vector<T>` | Numeric types are packed; packed and unpacked input are both read |
+| Messages from the same file (top level or nested) | The generated message type | Written as a length-delimited sub-message |
+| `optional T` (explicit presence) | `std::optional<T>` | An engaged value is always written, even zero or empty; decode engages the member when the field is on the wire |
+| `oneof name { ... }` | `std::variant<std::monostate, T1, T2, ...>` named after the oneof | Only the active alternative is written, always; the last alternative on the wire wins. Alternatives are told apart by index (`emplace<I>`, `get<I>`), so two may share a C++ type |
+| `map<K, V>` | `std::map<K, V>` | One entry message per key (key field 1, value field 2, both always written); a missing key or value decodes as the default; for a repeated key the last entry wins. Keys must be an integer type, `bool` or `string` |
+
+The generated members follow the declaration order in the `.proto` file. A oneof is one member.
+`parse<>::member_count()` and `get_member(i)` describe them; `field_count()` and `get_field(i)` still
+list only the plain fields. A hand-written `reflect_base` struct may use another map type with
+`insert_or_assign` (for example `std::unordered_map`), but an `optional` field must be a
+`std::optional` and a oneof must be a `std::variant`, or compilation stops with a message.
+
+`define_message<schema, "Parent">()` also defines the message types that `Parent` uses, so the
+order of `define_message` calls does not matter. A message may contain itself through a `repeated`
+field or a map.
+
+Not supported, and reported at compile time: `extend`, field types that are not visible in the
+same file (imports are not resolved), and invalid map key types. A syntax error in the schema stops
+compilation with its line and column. Groups and unknown fields are skipped on decode.
+
+The reflection path is on when the compiler defines `__cpp_reflection` or `__cpp_impl_reflection`
+(GCC 16 with `-freflection` defines the second one).
 
 ---
 
@@ -191,7 +224,7 @@ cmake -S . -B build -DCMAKE_CXX_STANDARD=26 -DCTPB_BUILD_TESTS=ON -DCTPB_BUILD_B
 # Compile everything
 cmake --build build -j
 
-# Execute all 8 unit tests and interoperability suites
+# Execute the unit tests, the compile-fail cases and the interoperability suite
 ctest --test-dir build --output-on-failure
 ```
 
@@ -237,6 +270,10 @@ latexmk -pdf -outdir=presentation presentation/presentation.tex
 │   ├── test_nested.cpp     # Hierarchical nested message resolution
 │   ├── test_oneof.cpp      # proto3 oneof union serialization
 │   ├── test_maps.cpp       # proto3 map<K,V> wire testing
+│   ├── test_optional.cpp   # proto3 optional (explicit presence) on both code paths
+│   ├── test_oneof_variant.cpp # Generated oneof members (std::variant) on both code paths
+│   ├── test_map_fields.cpp # Generated map members (std::map) on both code paths
+│   ├── compile_fail/       # Schemas and structs that must not compile, with the expected message
 │   └── test_interop_protobuf.cpp # Bidirectional Google protoc & gRPC parity
 ├── benchmarks/             # Microbenchmark evaluation scripts
 │   ├── eval_runtime_comparison.sh # Head-to-head runtime benchmark
