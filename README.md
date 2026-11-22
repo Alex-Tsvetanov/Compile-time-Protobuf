@@ -7,20 +7,22 @@
 
 A modern, header-only C++26 library that ingests `.proto` files directly at compile time and generates type-safe C++ structs and wire serialization routines using C++26 static reflection ([P2996](https://wg21.link/p2996)) and `#embed` ([P1967](https://wg21.link/p1967)).
 
-**Zero `protoc` code generation. Zero intermediate files on disk. Zero virtual dispatch. Outperforms Google `libprotobuf` across both serialization (2.81×) and deserialization (1.71×), a margin that holds against `libprotobuf-lite` too.**
+**Zero `protoc` code generation. Zero intermediate files on disk. Zero virtual dispatch. Encodes 5.6× faster than Google `libprotobuf-lite`, decodes at parity, and builds a stripped executable 93.70× smaller than static `libprotobuf`.**
 
 ---
 
 ## Key Highlights
 
 - **Pure C++26 Static Reflection (Zero Macros):** Define message types programmatically inside `consteval` blocks (`ctpb::define_message<schema, "Person">()`) and access members using native dot syntax (`person.name`).
-- **Single-Pass O(N) `constexpr` Parser:** Front-end parser executes in < 55 µs during compilation (> 18,800 schemas/sec), 300× to 800× faster than `protoc` process spawning.
-- **Superior Runtime Performance:**
-  - **Encode:** **32.11 ns** (1,396.0 MB/s, 31.15 MOps/s) vs Google Protobuf 90.29 ns → **2.81× faster**.
-  - **Decode:** **127.99 ns** (350.2 MB/s, 7.81 MOps/s) vs Google Protobuf 218.60 ns → **1.71× faster**.
-- **93.7× Smaller Static Binary Footprint:** Standalone static executable requires only **18.3 KB** compared to **1.72 MB** with static `protoc` / `libprotobuf` by eliminating runtime descriptor registries, arena allocators, and mutex locks.
-- **Holds Up Against the Fairer Baseline:** re-measured against `libprotobuf-lite` (same machine, median of 7 trials, see `benchmarks/eval_runtime_comparison_lite.sh` and `benchmarks/results/`): **3.06× faster encoding, 1.69× faster decoding**, essentially the same margin as against full `libprotobuf`.
+- **Single-Pass O(N) `constexpr` Parser:** parses a 100-field schema in 7.239 µs and a 5-field schema in 0.492 µs (median).
+- **Runtime Performance** (47-byte message, against `libprotobuf-lite`):
+  - **Encode:** **6.614 ns** vs 36.992 ns → **5.593× faster**.
+  - **Decode:** **62.218 ns** vs 68.553 ns → **1.102×, which is parity**. `ctpb` validates UTF-8 on `string` fields as proto3 requires, so the comparison is like-for-like.
+- **93.70× Smaller Static Binary Footprint:** a stripped standalone executable is **18,776 bytes**, against **1,759,368 bytes** with static `protoc` / `libprotobuf`, by eliminating runtime descriptor registries, arena allocators, and mutex locks.
+- **Same Result Against Full `libprotobuf`:** 5.375× faster encoding and 1.088× decoding, so the choice of baseline does not change the conclusion.
 - **Reference & Transport Interoperability:** bidirectional wire-format fidelity with official `libprotobuf` (3.21.12), covering scalars, strings, nested messages, enums, `bytes` fields, and packed repeated scalar fields, plus `grpc::SerializationTraits<T>` transport integration.
+
+> The TELECOM 2026 paper and slides report an earlier campaign on a different host: 2.81× encode and 1.71× decode against full `libprotobuf`, and a 93.7× footprint reduction. They are kept here exactly as submitted. The figures above come from the corrected re-measurement of 2026-09-07; [Empirical Benchmarks](#empirical-benchmarks) says how they were taken.
 
 ---
 
@@ -34,7 +36,7 @@ A modern, header-only C++26 library that ingests `.proto` files directly at comp
 | **Two-Pass Raw-Pointer Wire Engine** | ✅ | Exact compile-time pre-allocation (`byte_size()`) + non-allocating direct pointer encoding |
 | **Comprehensive Test Suite (9 Suites)** | ✅ | Lexer, parser, wire encoding, roundtrips, nested messages, maps, oneofs, wire-format edge cases, Google interop |
 | **Microbenchmark Suite** | ✅ | Ingestion latency, binary footprint evaluation, head-to-head runtime speedup vs `libprotobuf` and `libprotobuf-lite` |
-| **Academic Publication Paper** | ✅ | 5-page TELECOM 2026 conference paper (`paper/main.pdf`), plus the 7-page extended version (`full_paper/main.pdf`) |
+| **Academic Publication Paper** | ✅ | 4-page TELECOM 2026 conference paper as submitted (`paper/main.pdf`), plus a 7-page extended version with the re-measured figures (`full_paper/main.pdf`) |
 | **Conference Beamer Presentation** | ✅ | 12-slide 10-minute presentation (`presentation/presentation.pdf`) |
 
 ---
@@ -103,14 +105,14 @@ int main() {
     p.tags.push_back("author");
     p.tags.push_back("systems-programming");
 
-    // 3. Ultra-fast single-allocation serialization (2.81x faster than Google libprotobuf!)
+    // 3. Single-allocation serialization (5.6x faster than libprotobuf-lite)
     std::vector<std::byte> wire = ctpb::encode(p);
 
     // Optional zero-allocation serialization into existing buffer:
     // std::byte buffer[256];
     // std::size_t written = ctpb::encode_to(p, buffer);
 
-    // 4. Strongly-typed deserialization (1.71x faster than Google libprotobuf!)
+    // 4. Strongly-typed deserialization (on par with libprotobuf-lite)
     auto decoded = ctpb::decode<Person>(wire);
     if (decoded) {
         std::println("Name:  {}", decoded->name);
@@ -126,53 +128,66 @@ int main() {
 
 ## Empirical Benchmarks
 
-All microbenchmarks were executed inside the project's own `sleepingeight/clang-cpp-refl` Docker
-image, on an AMD Ryzen 5 3600 (6 cores, x86_64, Ubuntu 24.04), Clang 21.0
-(`-std=c++26 -freflection -O3`), Protobuf 3.21.12. Every number below is the median of 7 trials;
-raw output for all three tables is checked in under `benchmarks/results/`, and each script that
-produced it is in `benchmarks/`.
+Every figure in this section comes from one record,
+`measurements/2026-09-07-laptop-p5-retake/`. One host (AMD Ryzen 7 5800H, 16 logical cores,
+Arch Linux, kernel 7.2.3), one sitting, CPU clock pinned before and restored after. The
+benchmarks ran inside the project's Docker image with Clang 21 (the Bloomberg P2996 branch) and
+Protobuf 3.21.12. Each figure is the median of trials 1 to 6; trial 0 is excluded as warm-up.
+Brackets give the full range. Raw output is in the record's `raw/` directory.
 
-### 1. Runtime Serialization & Deserialization (1,000,000 iterations/trial, 7 trials)
+Absolute times on this host move by 20% or more with thermal state between sessions. Only the
+ratios carry from one session to another.
 
-Representative 3-field `Person` message, 47-byte wire payload:
+The paper in `paper/` and the slides in `presentation/` report an earlier campaign, taken on an
+AMD Ryzen 5 3600 before `ctpb` validated UTF-8. They are kept as submitted. Do not mix the two
+sets of absolute numbers.
 
-| Operation | `ctpb` Latency | Google `libprotobuf` | `ctpb` Throughput | Google Throughput | Speedup |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **Serialization (Encode)** | **32.11 ns** | 90.29 ns | **31.15 MOps/s** (1,396.0 MB/s) | 11.08 MOps/s (496.4 MB/s) | **2.81× faster** |
-| **Deserialization (Decode)** | **127.99 ns** | 218.60 ns | **7.81 MOps/s** (350.2 MB/s) | 4.58 MOps/s (205.0 MB/s) | **1.71× faster** |
+### 1. Runtime Serialization & Deserialization
 
-Full `libprotobuf` carries descriptor pools and reflection registries `ctpb` doesn't implement, so
-the same comparison was repeated against `libprotobuf-lite`, same machine, same script
-(`benchmarks/eval_runtime_comparison_lite.sh`):
+Representative 3-field `Person` message, 47-byte wire payload, 1,000,000 iterations per trial.
+Against `libprotobuf-lite`, the fair baseline:
 
-| Operation | `ctpb` Throughput | `libprotobuf-lite` Throughput | Speedup |
+| Operation | `ctpb` | `libprotobuf-lite` | Speedup |
 | :--- | :---: | :---: | :---: |
-| **Encode** | 1,371.9 MB/s | 448.6 MB/s | 3.06× |
-| **Decode** | 337.9 MB/s | 200.4 MB/s | 1.69× |
+| **Encode** | **6.614 ns** [6.268 to 6.698] | 36.992 ns [35.691 to 37.087] | **5.593×** |
+| **Decode** | **62.218 ns** [58.114 to 62.859] | 68.553 ns [64.715 to 69.242] | **1.102×** |
 
-The margin against the fairer baseline doesn't shrink: encode is slightly wider, decode is within noise.
+Against full `libprotobuf`, which also carries descriptor pools and reflection registries that
+`ctpb` does not implement:
 
-### 2. Standalone Binary Footprint & Static Overhead
+| Operation | `ctpb` | `libprotobuf` | Speedup |
+| :--- | :---: | :---: | :---: |
+| **Encode** | 6.466 ns [6.416 to 6.831] | 34.755 ns [34.675 to 36.755] | 5.375× |
+| **Decode** | 58.434 ns [57.334 to 59.064] | 63.552 ns [63.401 to 68.705] | 1.088× |
 
-| Metric | `ctpb` (P2996) | `protoc` (Dynamic) | `protoc` (Fully Static) | Impact |
-| :--- | :---: | :---: | :---: | :---: |
-| **Generated Source Lines** | **0** | 754 lines | 754 lines | Zero disk I/O, no cache churn |
-| **Stripped Binary Size** | **18.3 KB** | 26.9 KB | **1,718.1 KB** (1.72 MB) | **93.7× size reduction** |
-| **Code Section (`.text`)** | **9.8 KB** | 16.0 KB | 1,691.4 KB | Minimal instruction cache footprint |
-| **External Shared Dependencies**| **0** | `libprotobuf.so` | **0** | Zero shared library version mismatch |
+Encode is the result: more than five times faster than either baseline. Decode is parity, not a
+lead. `ctpb` performs the UTF-8 validation of `string` fields that proto3 requires, so both
+sides do the same work.
 
-### 3. Schema Ingestion Latency (20,000 iterations/trial, 7 trials)
+### 2. Standalone Binary Footprint
 
-Schemas scaled by field count alone (`int32` fields, matching the paper's methodology):
+| Metric | `ctpb` (P2996) | `protoc` (dynamic) | `protoc` (fully static) |
+| :--- | :---: | :---: | :---: |
+| **Generated source lines** | **0** | 754 | 754 |
+| **Stripped executable** | **18,776 bytes** | 27,504 bytes | 1,759,368 bytes |
+| **Size relative to `ctpb`** | 1× | 1.46× | **93.70×** |
+| **External shared libraries** | **0** | `libprotobuf.so` | **0** |
 
-| Schema Complexity | Field Count | Ingestion Latency | Throughput | Speedup vs `protoc` |
-| :--- | :---: | :---: | :---: | :---: |
-| **Small Message** | 5 | 0.86 µs | 1,164,144 parses/s | ~8,150× faster |
-| **Medium Message** | 25 | 3.04 µs | 329,164 parses/s | ~2,300× faster |
-| **Large Message** | 100 | 11.36 µs | 88,013 parses/s | ~620× faster |
+Section offsets in these executables are page-aligned, so the metric cannot see growth below
+about 4 KB. Adding UTF-8 validation grew the code by 894 bytes and left the file size unchanged.
 
-`protoc` process-spawn time for the same 3-field schema: 7 ms median of 7 trials
-(`benchmarks/results/protoc_spawn_time_docker.txt`).
+### 3. Schema Parsing Latency
+
+Schemas scaled by field count alone (`int32` fields), 20,000 iterations per trial:
+
+| Schema | Fields | Median | Range |
+| :--- | :---: | :---: | :---: |
+| **Small** | 5 | 0.492 µs | 0.489 to 0.500 µs |
+| **Medium** | 25 | 1.938 µs | 1.920 to 1.968 µs |
+| **Large** | 100 | 7.239 µs | 7.227 to 7.256 µs |
+
+This is the parser's cost when a benchmark loop drives it at run time, not a compile-time cost.
+The record has no `protoc` spawn time, so this section gives no ratio against `protoc`.
 
 ---
 
@@ -242,8 +257,8 @@ latexmk -pdf -outdir=presentation presentation/presentation.tex
 │   ├── eval_runtime_comparison.sh # Head-to-head runtime benchmark
 │   └── eval_binary_size.sh        # Binary footprint benchmark
 ├── examples/               # Example programs (person.cpp)
-├── paper/                  # 5-page TELECOM 2026 conference paper
-├── full_paper/             # 7-page extended version of the paper
+├── paper/                  # 4-page TELECOM 2026 conference paper, as submitted
+├── full_paper/             # 7-page extended version, re-measured figures
 └── presentation/           # 12-slide Beamer conference presentation
 ```
 
@@ -397,6 +412,8 @@ changed today.** UTF-8 validation landed in the merge at `dfed528`, and the reta
 the retake's record commit is `b2bd0b4` at 03:02, and `include/ctpb/wire.hpp` carries the
 validation on `main` now. Both manuscripts cite only the retake: six references, all to
 `2026-09-07-laptop-p5-*`, and a scan for every superseded single-host figure returns nothing.
+
+**Update, 2026-11-22.** `paper/` and `presentation/` were restored to the copies submitted to and approved by TELECOM 2026, so they report the earlier campaign. The statement above now holds for `full_paper/` only. The revised `paper/` that cited the retake is in the history at `f2efb7e`.
 
 **One question the audit raises and cannot answer.** The stripped-binary footprint is
 **byte-identical before and after validation landed**: 18,776 / 27,504 / 1,759,368 in the single-host
