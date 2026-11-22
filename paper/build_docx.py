@@ -323,17 +323,16 @@ p.add_run("Protocol Buffers, C++26, static reflection, #embed, "
 # ============================================================= I. INTRODUCTION
 add_p("Introduction", style="heading 1")
 add_p(
-    "Distributed systems and microservice architectures rely on Interface "
-    "Definition Languages such as Google Protocol Buffers [1], FlatBuffers [2] "
-    "and Cap'n Proto [3]. One schema definition serves several languages, the "
-    "encoding it produces is compact on the wire, and a message can gain fields "
-    "without breaking readers built against an earlier version of the schema.",
-    style="Body Text")
+    "Interface Definition Languages such as Google Protocol Buffers [1], "
+    "FlatBuffers [2], and Cap'n Proto [3] underpin distributed systems, "
+    "microservice architectures, and high-performance computing, offering "
+    "cross-language interoperability, compact wire encodings, and compatibility "
+    "guarantees across schema versions.", style="Body Text")
 add_p(
     "Protocol Buffers, however, depend on an external code generator. Building a "
     "C++ project that uses Protobuf requires the build system to invoke `protoc` "
     "and produce intermediate `.pb.h` and `.pb.cc` files. This imposes four "
-    "costs: custom build rules and dependency graphs to track generated "
+    "costs: intricate build rules and dependency graphs to track generated "
     "artifacts; version skew between the runtime `libprotobuf` and the build-time "
     "`protoc`, a frequent source of ABI mismatches; codebase bloat, since large "
     "systems generate hundreds of thousands of lines that slow incremental "
@@ -698,12 +697,9 @@ add_p(
     "toolchain. The initial release covers wire serialization only; gRPC service "
     "stubs are deliberately out of scope, although the transport traits above "
     "show that `ctpb` types integrate with existing gRPC channels. Finally, "
-    "constant evaluation is bounded first by the compiler's step limit rather than "
-    "by memory: a single message of 300 `int32` fields compiles under Clang's "
-    "default of 1,048,576 steps and one of 301 does not. The bound is a flag rather "
-    "than a wall, since `-fconstexpr-steps=4194304` compiles a 1,000-field message, "
-    "but the default is low enough that a large schema meets it and `ctpb` does not "
-    "raise it. Future work targets the Well-Known Types "
+    "monolithic schemas containing hundreds of messages demand correspondingly "
+    "generous compiler constant-evaluation memory limits, since the entire AST is "
+    "materialized during translation. Future work targets the Well-Known Types "
     "(`Timestamp`, `Duration`), compile-time JSON mapping, and asynchronous stub "
     "synthesis.", style="Body Text")
 
@@ -720,9 +716,8 @@ add_p(
     "of 1,396 MB/s encoding (2.81 times) and 350 MB/s decoding (1.71 times), "
     "margins that persist against the leaner `libprotobuf-lite` baseline, with "
     "bidirectional wire-format fidelity verified against `libprotobuf` itself. "
-    "On this evidence static reflection is a practical foundation for interface "
-    "definition compilation, and on binary size and encoding throughput a better "
-    "one than an external generator.",
+    "Static reflection is a viable and, on this evidence, preferable foundation "
+    "for interface definition compilation in modern systems programming.",
     style="Body Text")
 
 # ========================================================== ACKNOWLEDGMENT
