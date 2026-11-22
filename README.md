@@ -14,7 +14,7 @@ A modern, header-only C++26 library that ingests `.proto` files directly at comp
 ## Key Highlights
 
 - **Pure C++26 Static Reflection (Zero Macros):** Define message types programmatically inside `consteval` blocks (`ctpb::define_message<schema, "Person">()`) and access members using native dot syntax (`person.name`).
-- **Single-Pass O(N) `constexpr` Parser:** Front-end parser executes in < 55 μs during compilation (> 18,800 schemas/sec), 300× to 800× faster than `protoc` process spawning.
+- **Single-Pass O(N) `constexpr` Parser:** Front-end parser executes in < 55 µs during compilation (> 18,800 schemas/sec), 300× to 800× faster than `protoc` process spawning.
 - **Superior Runtime Performance:**
   - **Encode:** **32.11 ns** (1,396.0 MB/s, 31.15 MOps/s) vs Google Protobuf 90.29 ns → **2.81× faster**.
   - **Decode:** **127.99 ns** (350.2 MB/s, 7.81 MOps/s) vs Google Protobuf 218.60 ns → **1.71× faster**.
@@ -34,7 +34,7 @@ A modern, header-only C++26 library that ingests `.proto` files directly at comp
 | **Two-Pass Raw-Pointer Wire Engine** | ✅ | Exact compile-time pre-allocation (`byte_size()`) + non-allocating direct pointer encoding |
 | **Comprehensive Test Suite (9 Suites)** | ✅ | Lexer, parser, wire encoding, roundtrips, nested messages, maps, oneofs, wire-format edge cases, Google interop |
 | **Microbenchmark Suite** | ✅ | Ingestion latency, binary footprint evaluation, head-to-head runtime speedup vs `libprotobuf` and `libprotobuf-lite` |
-| **Academic Publication Paper** | ✅ | 4-page TELECOM 2026 conference paper (`paper/main.pdf`), plus the 7-page extended version (`full_paper/main.pdf`) |
+| **Academic Publication Paper** | ✅ | 5-page TELECOM 2026 conference paper (`paper/main.pdf`), plus the 7-page extended version (`full_paper/main.pdf`) |
 | **Conference Beamer Presentation** | ✅ | 12-slide 10-minute presentation (`presentation/presentation.pdf`) |
 
 ---
@@ -167,9 +167,9 @@ Schemas scaled by field count alone (`int32` fields, matching the paper's method
 
 | Schema Complexity | Field Count | Ingestion Latency | Throughput | Speedup vs `protoc` |
 | :--- | :---: | :---: | :---: | :---: |
-| **Small Message** | 5 | 0.86 μs | 1,164,144 parses/s | ~8,150× faster |
-| **Medium Message** | 25 | 3.04 μs | 329,164 parses/s | ~2,300× faster |
-| **Large Message** | 100 | 11.36 μs | 88,013 parses/s | ~620× faster |
+| **Small Message** | 5 | 0.86 µs | 1,164,144 parses/s | ~8,150× faster |
+| **Medium Message** | 25 | 3.04 µs | 329,164 parses/s | ~2,300× faster |
+| **Large Message** | 100 | 11.36 µs | 88,013 parses/s | ~620× faster |
 
 `protoc` process-spawn time for the same 3-field schema: 7 ms median of 7 trials
 (`benchmarks/results/protoc_spawn_time_docker.txt`).
@@ -242,7 +242,7 @@ latexmk -pdf -outdir=presentation presentation/presentation.tex
 │   ├── eval_runtime_comparison.sh # Head-to-head runtime benchmark
 │   └── eval_binary_size.sh        # Binary footprint benchmark
 ├── examples/               # Example programs (person.cpp)
-├── paper/                  # 4-page TELECOM 2026 conference paper
+├── paper/                  # 5-page TELECOM 2026 conference paper
 ├── full_paper/             # 7-page extended version of the paper
 └── presentation/           # 12-slide Beamer conference presentation
 ```
