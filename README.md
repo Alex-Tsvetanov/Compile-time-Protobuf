@@ -387,7 +387,7 @@ asymmetry rather than the published number.
 
 ### Audit, 2026-09-07: what these manuscripts owe
 
-**Claim.** Compile-time Protobuf without a code generator: schema parsing under 11.4\,µs, encode
+**Claim.** Compile-time Protobuf without a code generator: schema parsing under 11.4 µs, encode
 about 5.6× the reference, decode at parity, and a 93.70× stripped-binary reduction.
 
 **Record.** `measurements/2026-09-07-laptop-p5-retake`, which supersedes the single-host set.
