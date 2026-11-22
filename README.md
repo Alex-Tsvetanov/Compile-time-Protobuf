@@ -7,19 +7,19 @@
 
 A modern, header-only C++26 library that ingests `.proto` files directly at compile time and generates type-safe C++ structs and wire serialization routines using C++26 static reflection ([P2996](https://wg21.link/p2996)) and `#embed` ([P1967](https://wg21.link/p1967)).
 
-**Zero `protoc` code generation. Zero intermediate files on disk. Zero virtual dispatch. Outperforms Google `libprotobuf` across both serialization ($2.81\times$) and deserialization ($1.71\times$), a margin that holds against `libprotobuf-lite` too.**
+**Zero `protoc` code generation. Zero intermediate files on disk. Zero virtual dispatch. Outperforms Google `libprotobuf` across both serialization (2.81×) and deserialization (1.71×), a margin that holds against `libprotobuf-lite` too.**
 
 ---
 
 ## Key Highlights
 
 - **Pure C++26 Static Reflection (Zero Macros):** Define message types programmatically inside `consteval` blocks (`ctpb::define_message<schema, "Person">()`) and access members using native dot syntax (`person.name`).
-- **Single-Pass $\mathcal{O}(N)$ `constexpr` Parser:** Front-end parser executes in $< 55\,\mu\text{s}$ during compilation ($> 18{,}800$ schemas/sec)—$300\times\text{--}800\times$ faster than `protoc` process spawning.
+- **Single-Pass O(N) `constexpr` Parser:** Front-end parser executes in < 55 μs during compilation (> 18,800 schemas/sec), 300× to 800× faster than `protoc` process spawning.
 - **Superior Runtime Performance:**
-  - **Encode:** **$32.11\,\text{ns}$** ($1{,}396.0\,\text{MB/s}$, $31.15\,\text{MOps/s}$) vs Google Protobuf $90.29\,\text{ns}$ $\to$ **$\mathbf{2.81\times}$ faster**.
-  - **Decode:** **$127.99\,\text{ns}$** ($350.2\,\text{MB/s}$, $7.81\,\text{MOps/s}$) vs Google Protobuf $218.60\,\text{ns}$ $\to$ **$\mathbf{1.71\times}$ faster**.
-- **$93.7\times$ Smaller Static Binary Footprint:** Standalone static executable requires only **$18.3\,\text{KB}$** compared to **$1.72\,\text{MB}$** with static `protoc` / `libprotobuf` by eliminating runtime descriptor registries, arena allocators, and mutex locks.
-- **Holds Up Against the Fairer Baseline:** re-measured against `libprotobuf-lite` (same machine, median of 7 trials — see `benchmarks/eval_runtime_comparison_lite.sh` and `benchmarks/results/`): **$3.06\times$ faster encoding, $1.69\times$ faster decoding**, essentially the same margin as against full `libprotobuf`.
+  - **Encode:** **32.11 ns** (1,396.0 MB/s, 31.15 MOps/s) vs Google Protobuf 90.29 ns → **2.81× faster**.
+  - **Decode:** **127.99 ns** (350.2 MB/s, 7.81 MOps/s) vs Google Protobuf 218.60 ns → **1.71× faster**.
+- **93.7× Smaller Static Binary Footprint:** Standalone static executable requires only **18.3 KB** compared to **1.72 MB** with static `protoc` / `libprotobuf` by eliminating runtime descriptor registries, arena allocators, and mutex locks.
+- **Holds Up Against the Fairer Baseline:** re-measured against `libprotobuf-lite` (same machine, median of 7 trials, see `benchmarks/eval_runtime_comparison_lite.sh` and `benchmarks/results/`): **3.06× faster encoding, 1.69× faster decoding**, essentially the same margin as against full `libprotobuf`.
 - **Reference & Transport Interoperability:** bidirectional wire-format fidelity with official `libprotobuf` (3.21.12), covering scalars, strings, nested messages, enums, `bytes` fields, and packed repeated scalar fields, plus `grpc::SerializationTraits<T>` transport integration.
 
 ---
@@ -34,7 +34,7 @@ A modern, header-only C++26 library that ingests `.proto` files directly at comp
 | **Two-Pass Raw-Pointer Wire Engine** | ✅ | Exact compile-time pre-allocation (`byte_size()`) + non-allocating direct pointer encoding |
 | **Comprehensive Test Suite (9 Suites)** | ✅ | Lexer, parser, wire encoding, roundtrips, nested messages, maps, oneofs, wire-format edge cases, Google interop |
 | **Microbenchmark Suite** | ✅ | Ingestion latency, binary footprint evaluation, head-to-head runtime speedup vs `libprotobuf` and `libprotobuf-lite` |
-| **Academic Publication Paper** | ✅ | 7-page IEEE CSIT 2026 conference paper (`paper/main.pdf`) |
+| **Academic Publication Paper** | ✅ | 4-page TELECOM 2026 conference paper (`paper/main.pdf`), plus the 7-page extended version (`full_paper/main.pdf`) |
 | **Conference Beamer Presentation** | ✅ | 12-slide 10-minute presentation (`presentation/presentation.pdf`) |
 
 ---
@@ -138,8 +138,8 @@ Representative 3-field `Person` message, 47-byte wire payload:
 
 | Operation | `ctpb` Latency | Google `libprotobuf` | `ctpb` Throughput | Google Throughput | Speedup |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Serialization (Encode)** | **$32.11\,\text{ns}$** | $90.29\,\text{ns}$ | **$31.15\,\text{MOps/s}$** ($1{,}396.0\,\text{MB/s}$) | $11.08\,\text{MOps/s}$ ($496.4\,\text{MB/s}$) | **$\mathbf{2.81\times}$ faster** |
-| **Deserialization (Decode)** | **$127.99\,\text{ns}$** | $218.60\,\text{ns}$ | **$7.81\,\text{MOps/s}$** ($350.2\,\text{MB/s}$) | $4.58\,\text{MOps/s}$ ($205.0\,\text{MB/s}$) | **$\mathbf{1.71\times}$ faster** |
+| **Serialization (Encode)** | **32.11 ns** | 90.29 ns | **31.15 MOps/s** (1,396.0 MB/s) | 11.08 MOps/s (496.4 MB/s) | **2.81× faster** |
+| **Deserialization (Decode)** | **127.99 ns** | 218.60 ns | **7.81 MOps/s** (350.2 MB/s) | 4.58 MOps/s (205.0 MB/s) | **1.71× faster** |
 
 Full `libprotobuf` carries descriptor pools and reflection registries `ctpb` doesn't implement, so
 the same comparison was repeated against `libprotobuf-lite`, same machine, same script
@@ -147,18 +147,18 @@ the same comparison was repeated against `libprotobuf-lite`, same machine, same 
 
 | Operation | `ctpb` Throughput | `libprotobuf-lite` Throughput | Speedup |
 | :--- | :---: | :---: | :---: |
-| **Encode** | $1{,}371.9\,\text{MB/s}$ | $448.6\,\text{MB/s}$ | $3.06\times$ |
-| **Decode** | $337.9\,\text{MB/s}$ | $200.4\,\text{MB/s}$ | $1.69\times$ |
+| **Encode** | 1,371.9 MB/s | 448.6 MB/s | 3.06× |
+| **Decode** | 337.9 MB/s | 200.4 MB/s | 1.69× |
 
-The margin against the fairer baseline doesn't shrink — encode is slightly wider, decode is within noise.
+The margin against the fairer baseline doesn't shrink: encode is slightly wider, decode is within noise.
 
 ### 2. Standalone Binary Footprint & Static Overhead
 
 | Metric | `ctpb` (P2996) | `protoc` (Dynamic) | `protoc` (Fully Static) | Impact |
 | :--- | :---: | :---: | :---: | :---: |
 | **Generated Source Lines** | **0** | 754 lines | 754 lines | Zero disk I/O, no cache churn |
-| **Stripped Binary Size** | **$18.3\,\text{KB}$** | $26.9\,\text{KB}$ | **$1,718.1\,\text{KB}$** ($1.72\,\text{MB}$) | **$\mathbf{93.7\times}$ size reduction** |
-| **Code Section (`.text`)** | **$9.8\,\text{KB}$** | $16.0\,\text{KB}$ | $1,691.4\,\text{KB}$ | Minimal instruction cache footprint |
+| **Stripped Binary Size** | **18.3 KB** | 26.9 KB | **1,718.1 KB** (1.72 MB) | **93.7× size reduction** |
+| **Code Section (`.text`)** | **9.8 KB** | 16.0 KB | 1,691.4 KB | Minimal instruction cache footprint |
 | **External Shared Dependencies**| **0** | `libprotobuf.so` | **0** | Zero shared library version mismatch |
 
 ### 3. Schema Ingestion Latency (20,000 iterations/trial, 7 trials)
@@ -167,11 +167,11 @@ Schemas scaled by field count alone (`int32` fields, matching the paper's method
 
 | Schema Complexity | Field Count | Ingestion Latency | Throughput | Speedup vs `protoc` |
 | :--- | :---: | :---: | :---: | :---: |
-| **Small Message** | 5 | $0.86\,\mu\text{s}$ | $1{,}164{,}144\,\text{parses/s}$ | $\sim 8{,}150\times$ faster |
-| **Medium Message** | 25 | $3.04\,\mu\text{s}$ | $329{,}164\,\text{parses/s}$ | $\sim 2{,}300\times$ faster |
-| **Large Message** | 100 | $11.36\,\mu\text{s}$ | $88{,}013\,\text{parses/s}$ | $\sim 620\times$ faster |
+| **Small Message** | 5 | 0.86 μs | 1,164,144 parses/s | ~8,150× faster |
+| **Medium Message** | 25 | 3.04 μs | 329,164 parses/s | ~2,300× faster |
+| **Large Message** | 100 | 11.36 μs | 88,013 parses/s | ~620× faster |
 
-`protoc` process-spawn time for the same 3-field schema: $7\,\text{ms}$ median of 7 trials
+`protoc` process-spawn time for the same 3-field schema: 7 ms median of 7 trials
 (`benchmarks/results/protoc_spawn_time_docker.txt`).
 
 ---
@@ -242,7 +242,8 @@ latexmk -pdf -outdir=presentation presentation/presentation.tex
 │   ├── eval_runtime_comparison.sh # Head-to-head runtime benchmark
 │   └── eval_binary_size.sh        # Binary footprint benchmark
 ├── examples/               # Example programs (person.cpp)
-├── paper/                  # 6-page IEEE CSIT 2026 conference paper
+├── paper/                  # 4-page TELECOM 2026 conference paper
+├── full_paper/             # 7-page extended version of the paper
 └── presentation/           # 12-slide Beamer conference presentation
 ```
 
@@ -250,7 +251,7 @@ latexmk -pdf -outdir=presentation presentation/presentation.tex
 
 ## Authors
 
-- **Alex I. Tsvetanov** — Faculty of Computer Systems and Technologies, Technical University of Sofia (`atsvetanov@tu-sofia.bg`)
+- **Alex I. Tsvetanov**, Faculty of Computer Systems and Technologies, Technical University of Sofia (`atsvetanov@tu-sofia.bg`)
 
 ---
 
@@ -308,8 +309,8 @@ where verification is broken. Applying it to the remaining 35 would break every 
 gain an anonymity the prose already has.
 
 The layers separate cleanly: **prose is anonymous, records are authentic, the apparatus table
-is the bridge.** A reader verifying a figure fetches the record, recomputes the fingerprint —
-which works, because nothing was edited — and reads the apparatus table to learn which machine
+is the bridge.** A reader verifying a figure fetches the record, recomputes the fingerprint,
+which works because nothing was edited, and reads the apparatus table to learn which machine
 it was. The hostname is never needed to check anything.
 
 ### Settled questions, so they are not reopened
@@ -319,7 +320,7 @@ an identifier, not prose: `measurements/2026-09-02-desktop-routing/` in a body s
 doing what a DOI does, and nobody anonymises a DOI to match a naming convention. Renaming would
 break every path citation and every manifest that lists those directories, which is the
 `machine.node` trap one level up. Note also that "desktop" there is a nickname and not a
-hostname — the hostnames appear in no `.tex` at all. The convention governs how a sentence
+hostname. The hostnames appear in no `.tex` at all. The convention governs how a sentence
 refers to a machine, not the identifiers a sentence cites. Machine 2 in the prose, the real
 path in the citation.
 
@@ -392,15 +393,15 @@ about 5.6× the reference, decode at parity, and a 93.70× stripped-binary reduc
 **Record.** `measurements/2026-09-07-laptop-p5-retake`, which supersedes the single-host set.
 
 **Is the code still the code that was measured? Yes, and it is the one tree where that answer
-changed today.** UTF-8 validation landed in the merge at `dfed528`, and the retake followed it —
+changed today.** UTF-8 validation landed in the merge at `dfed528`, and the retake followed it:
 the retake's record commit is `b2bd0b4` at 03:02, and `include/ctpb/wire.hpp` carries the
 validation on `main` now. Both manuscripts cite only the retake: six references, all to
 `2026-09-07-laptop-p5-*`, and a scan for every superseded single-host figure returns nothing.
 
-**One question the audit raises and cannot answer.** The stripped-binary footprint is **byte-
-identical before and after validation landed**: 18,776 / 27,504 / 1,759,368 in the single-host
-`raw/binary_size.txt` and the same three numbers in the retake's. The retake did re-measure — it
-has its own `raw/binary_size.txt` — so this is not a transcription. But validation is code, and
+**One question the audit raises and cannot answer.** The stripped-binary footprint is
+**byte-identical before and after validation landed**: 18,776 / 27,504 / 1,759,368 in the single-host
+`raw/binary_size.txt` and the same three numbers in the retake's. The retake did re-measure, it
+has its own `raw/binary_size.txt`, so this is not a transcription. But validation is code, and
 code that is linked adds bytes.
 
 Either the validator is not reachable from the footprint binary, which measures a 3-field
